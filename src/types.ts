@@ -17,6 +17,17 @@ export interface Player {
   instagram?: string;
   youtube?: string;
   discord?: string;
+  game?: string;
+}
+
+export interface Achievement {
+  id?: string;
+  title: string;
+  description: string;
+  imageUrl: string;
+  date: string;
+  game: string;
+  division?: string;
 }
 
 export interface DivisionInfo {

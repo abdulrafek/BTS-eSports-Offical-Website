@@ -197,6 +197,7 @@
         "instagram": { "type": "string" },
         "youtube": { "type": "string" },
         "discord": { "type": "string" },
+        "game": { "type": "string", "enum": ["BGMI", "Free Fire", "COD", "Valorant"] },
         "kdHistory": { "type": "array", "items": { "type": "number" } },
         "updatedAt": { "type": "string", "format": "date-time" },
         "createdAt": { "type": "string", "format": "date-time" }
@@ -219,6 +220,21 @@
         "updatedAt": { "type": "string", "format": "date-time" }
       },
       "required": ["key", "name"]
+    },
+    "Achievement": {
+      "title": "Squad Achievement",
+      "description": "A record of a major squad or player win for the gallery.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "date": { "type": "string" },
+        "game": { "type": "string" },
+        "division": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "imageUrl", "date"]
     },
     "Scrim": {
       "title": "Scrim Session",
@@ -300,6 +316,10 @@
     "site_config/{configId}": {
       "schema": "SiteConfig",
       "description": "Global application settings"
+    },
+    "achievements/{achievementId}": {
+      "schema": "Achievement",
+      "description": "Global achievement gallery"
     }
   }
 }

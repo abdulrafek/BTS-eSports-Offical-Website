@@ -103,6 +103,16 @@ service cloud.firestore {
              data.name is string && data.name.size() <= 100;
     }
 
+    function isValidAchievement(data) {
+      return data.keys().hasAll(['title', 'imageUrl', 'date']) &&
+             data.title is string && data.title.size() <= 200 &&
+             data.imageUrl is string && data.imageUrl.size() <= 1000 &&
+             data.date is string && data.date.size() <= 100 &&
+             (data.get('game', '') is string) &&
+             (data.get('division', '') is string) &&
+             (data.get('description', '') is string);
+    }
+
     function isValidScrim(data) {
       return data.keys().hasAll(['title']) &&
              data.title is string && data.title.size() <= 200;
@@ -199,6 +209,13 @@ service cloud.firestore {
       allow read: if true;
       allow create: if isContentModerator() && isValidHighlight(incoming()) && (incoming().get('createdAt', request.time) == request.time);
       allow update: if isContentModerator() && isValidHighlight(incoming()) && (incoming().get('updatedAt', request.time) == request.time);
+      allow delete: if isContentModerator();
+    }
+
+    match /achievements/{achievementId} {
+      allow read: if true;
+      allow create: if isContentModerator() && isValidAchievement(incoming()) && (incoming().get('createdAt', request.time) == request.time);
+      allow update: if isContentModerator() && isValidAchievement(incoming()) && (incoming().get('updatedAt', request.time) == request.time);
       allow delete: if isContentModerator();
     }
 

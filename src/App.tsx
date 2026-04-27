@@ -672,12 +672,71 @@ const TournamentCard = ({ tournament, onToast, user, onNavigate }: { tournament:
   );
 };
 
+const SquadAchievementGallery = ({ achievements }: { achievements: any[] }) => {
+  if (achievements.length === 0) return null;
+  return (
+    <div className="mt-24 mb-16">
+      <SectionHeader 
+        tag="MISSION DEBRIEF" 
+        title="Victory" 
+        goldSpan="Archive" 
+        sub="The digital legacy of BTS eSports. Every conquest, every trophy, every dominant performance immortalized in our achievement vault."
+      />
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {achievements.map((ach, idx) => (
+          <motion.div
+            key={ach.id}
+            initial={{ opacity: 0, scale: 0.9 }}
+            whileInView={{ opacity: 1, scale: 1 }}
+            transition={{ delay: idx * 0.05 }}
+            className="bg-neutral-900 border border-white/5 relative group overflow-hidden group/card"
+          >
+             <div className="aspect-video relative overflow-hidden">
+                <img 
+                  referrerPolicy="no-referrer"
+                  src={ach.imageUrl} 
+                  alt={ach.title} 
+                  className="w-full h-full object-cover opacity-50 group-hover/card:opacity-100 group-hover/card:scale-110 transition-all duration-700" 
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-neutral-950 via-transparent to-transparent opacity-80" />
+                <div className="absolute top-3 left-3 bg-gold/90 text-black text-[8px] font-black px-2 py-0.5 uppercase tracking-widest">
+                   {ach.game}
+                </div>
+             </div>
+             <div className="p-5 space-y-2">
+                <h4 className="font-bebas text-xl text-white tracking-widest line-clamp-1 group-hover/card:text-gold transition-colors">{ach.title}</h4>
+                <div className="flex justify-between items-center text-[9px] text-neutral-500 font-bold uppercase tracking-widest">
+                   <span>{ach.date}</span>
+                   {ach.division && <span className="text-gold/60">{ach.division}</span>}
+                </div>
+                <p className="text-[10px] text-neutral-400 leading-relaxed line-clamp-2 pt-2 border-t border-white/5">{ach.description}</p>
+             </div>
+             <div className="absolute bottom-0 left-0 w-full h-[2px] bg-gold scale-x-0 group-hover/card:scale-x-100 transition-transform origin-left" />
+          </motion.div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+const formatSocialLink = (val: string, platform: 'instagram' | 'youtube' | 'discord') => {
+  if (!val) return '';
+  if (val.startsWith('http')) return val;
+  if (platform === 'instagram') return `https://instagram.com/${val.replace('@', '')}`;
+  if (platform === 'youtube') return `https://youtube.com/@${val.replace('@', '')}`;
+  if (platform === 'discord') return `https://discord.com/users/${val}`;
+  return val;
+};
+
 const RosterPage = ({ onToast }: { onToast: (t: string, m: string) => void }) => {
   const [activeDiv, setActiveDiv] = useState<string>('all');
+  const [activeGame, setActiveGame] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [selectedPlayer, setSelectedPlayer] = useState<any | null>(null);
   const [dbPlayers, setDbPlayers] = useState<any[]>([]);
   const [dbDivisions, setDbDivisions] = useState<any[]>([]);
+  const [dbAchievements, setDbAchievements] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -685,14 +744,17 @@ const RosterPage = ({ onToast }: { onToast: (t: string, m: string) => void }) =>
       try {
         const qPlayers = query(collection(db, 'squad'), orderBy('createdAt', 'desc'));
         const qDivs = query(collection(db, 'divisions'), orderBy('name'));
+        const qAchs = query(collection(db, 'achievements'), orderBy('date', 'desc'), limit(8));
         
-        const [playersSnap, divsSnap] = await Promise.all([
+        const [playersSnap, divsSnap, achSnap] = await Promise.all([
           getDocs(qPlayers),
-          getDocs(qDivs)
+          getDocs(qDivs),
+          getDocs(qAchs)
         ]);
         
         setDbPlayers(playersSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
         setDbDivisions(divsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        setDbAchievements(achSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
       } catch (error) {
         console.error(error);
       } finally {
@@ -703,14 +765,19 @@ const RosterPage = ({ onToast }: { onToast: (t: string, m: string) => void }) =>
   }, []);
 
   const displayPlayers = useMemo(() => {
-    const base = dbPlayers.length > 0 ? dbPlayers : PLAYERS;
-    if (!searchTerm) return base;
+    let filtered = dbPlayers.length > 0 ? dbPlayers : PLAYERS;
+    
+    if (activeGame !== 'all') {
+      filtered = filtered.filter(p => p.game === activeGame);
+    }
+
+    if (!searchTerm) return filtered;
     const term = searchTerm.toLowerCase();
-    return base.filter(p => 
+    return filtered.filter(p => 
       (p.ign || '').toLowerCase().includes(term) || 
       (p.role || '').toLowerCase().includes(term)
     );
-  }, [dbPlayers, searchTerm]);
+  }, [dbPlayers, searchTerm, activeGame]);
   
   const resolvedDivisions = useMemo(() => {
     if (dbDivisions.length > 0) {
@@ -732,41 +799,65 @@ const RosterPage = ({ onToast }: { onToast: (t: string, m: string) => void }) =>
     <div className="pt-24 container mx-auto px-4 min-h-screen">
       <SectionHeader tag="The Squad" title="Our" goldSpan="Roster" />
       
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-12">
+      <div className="flex flex-col gap-6 mb-12">
         <div className="flex flex-wrap gap-2">
           <button 
-            onClick={() => setActiveDiv('all')}
-            className={`btn-clip-sm px-5 py-2 text-xs font-bold font-orbitron uppercase tracking-widest border transition-all ${
-              activeDiv === 'all' ? 'border-gold bg-gold/10 text-gold' : 'border-gold/20 text-neutral-500 hover:border-gold/50'
+            onClick={() => setActiveGame('all')}
+            className={`btn-clip-sm px-4 py-1.5 text-[10px] font-bold font-orbitron uppercase tracking-widest border transition-all ${
+              activeGame === 'all' ? 'border-gold text-gold bg-gold/5' : 'border-white/10 text-neutral-600 hover:border-white/30'
             }`}
           >
-            All Divisions
+            All Games
           </button>
-          {(Object.entries(resolvedDivisions) as [string, any][]).map(([key, div]) => (
+          {['BGMI', 'Free Fire', 'COD', 'Valorant'].map(game => (
             <button
-              key={key}
-              onClick={() => setActiveDiv(key)}
-              className={`btn-clip-sm px-5 py-2 text-xs font-bold font-orbitron uppercase tracking-widest border transition-all ${
-                activeDiv === key ? 'border-gold bg-gold/10 text-gold shadow-[0_0_10px_rgba(255,215,0,0.2)]' : 'border-gold/20 text-neutral-500 hover:border-gold/50'
+              key={game}
+              onClick={() => setActiveGame(game)}
+              className={`btn-clip-sm px-4 py-1.5 text-[10px] font-bold font-orbitron uppercase tracking-widest border transition-all ${
+                activeGame === game ? 'border-gold text-gold bg-gold/5 shadow-[0_0_10px_rgba(255,215,0,0.1)]' : 'border-white/10 text-neutral-600 hover:border-white/30'
               }`}
             >
-              {div.name}
+              {game}
             </button>
           ))}
         </div>
 
-        <div className="relative group min-w-[300px]">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gold/40 group-focus-within:text-gold transition-colors" size={16} />
-          <input 
-            type="text"
-            placeholder="FILTER BY IGN OR ROLE..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full bg-black/50 border border-gold/20 focus:border-gold text-gold text-[10px] font-black tracking-widest px-12 py-3 uppercase transition-all focus:outline-none focus:shadow-[0_0_15px_rgba(255,215,0,0.1)]"
-          />
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 border-t border-white/5 pt-6">
+          <div className="flex flex-wrap gap-2">
+            <button 
+              onClick={() => setActiveDiv('all')}
+              className={`btn-clip-sm px-5 py-2 text-xs font-bold font-orbitron uppercase tracking-widest border transition-all ${
+                activeDiv === 'all' ? 'border-gold bg-gold/10 text-gold' : 'border-gold/20 text-neutral-500 hover:border-gold/50'
+              }`}
+            >
+              All Divisions
+            </button>
+            {(Object.entries(resolvedDivisions) as [string, any][]).map(([key, div]) => (
+              <button
+                key={key}
+                onClick={() => setActiveDiv(key)}
+                className={`btn-clip-sm px-5 py-2 text-xs font-bold font-orbitron uppercase tracking-widest border transition-all ${
+                  activeDiv === key ? 'border-gold bg-gold/10 text-gold shadow-[0_0_10px_rgba(255,215,0,0.2)]' : 'border-gold/20 text-neutral-500 hover:border-gold/50'
+                }`}
+              >
+                {div.name}
+              </button>
+            ))}
+          </div>
+
+          <div className="relative group min-w-[300px]">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gold/40 group-focus-within:text-gold transition-colors" size={16} />
+            <input 
+              type="text"
+              placeholder="SEARCH OPERATIVE..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full bg-black/50 border border-gold/20 focus:border-gold text-gold text-[10px] font-black tracking-widest px-12 py-3 uppercase transition-all focus:outline-none focus:shadow-[0_0_15px_rgba(255,215,0,0.1)]"
+            />
+          </div>
         </div>
       </div>
-
+      
       {loading && dbPlayers.length === 0 ? (
         <div className="py-20 text-center font-orbitron text-gold animate-pulse">Syncing Tactical Roster...</div>
       ) : (
@@ -804,13 +895,27 @@ const RosterPage = ({ onToast }: { onToast: (t: string, m: string) => void }) =>
                       {p.ign.split('•')[1]?.charAt(0) || p.ign.charAt(0) || 'P'}
                     </div>
                     <div className={`font-orbitron font-bold text-white text-sm truncate mb-1 ${p.status === 'Inactive' ? 'text-neutral-500' : ''}`}>{p.ign}</div>
-                    <div className="text-[10px] font-bold text-gold uppercase tracking-tighter mb-2">{p.role}</div>
-                      <div className="flex justify-center mb-4">
+                    <div className="flex flex-col gap-1 mb-2">
+                      <div className="text-[10px] font-bold text-gold uppercase tracking-tighter">{p.role}</div>
+                      {p.game && <div className="text-[8px] font-black text-white/40 uppercase tracking-widest">{p.game}</div>}
+                    </div>
+                      <div className="flex justify-center items-center gap-3 mb-4">
                         <ShareMenu 
                            title={`Meet ${p.ign} from the BTS eSports ${resolvedDivisions[p.div]?.name || 'Official'} division!`} 
                            url={`${window.location.origin}/player/${(p.ign || '').toLowerCase().replace(/•/g, '-').replace(/ /g, '-')}`} 
                           onToast={onToast} 
                         />
+                        {p.instagram && (
+                          <a 
+                            href={formatSocialLink(p.instagram, 'instagram')} 
+                            target="_blank" 
+                            rel="noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            className="p-2 text-neutral-500 hover:text-gold transition-colors"
+                          >
+                            <Instagram size={16} />
+                          </a>
+                        )}
                       </div>
                       <div className="flex justify-center gap-6">
                         <div className="text-center">
@@ -830,6 +935,46 @@ const RosterPage = ({ onToast }: { onToast: (t: string, m: string) => void }) =>
           })}
         </div>
       )}
+
+      <div className="mt-32 pb-24 border-t border-white/5 pt-24 text-center">
+        <SectionHeader 
+          tag="INTEL UPLINK" 
+          title="Connect on" 
+          goldSpan="Instagram" 
+          sub="Follow the official BTS eSports intelligence channel for recruitment alerts, tournament results, and behind-the-scenes operative footage."
+        />
+        <div className="flex justify-center gap-6 mt-8">
+           <a 
+             href="https://instagram.com/btsesports.official" 
+             target="_blank" 
+             rel="noreferrer"
+             className="group relative px-12 py-4 bg-gradient-to-tr from-[#f9ce34] via-[#ee2a7b] to-[#6228d7] text-white font-black uppercase tracking-[0.3em] overflow-hidden"
+           >
+              <div className="absolute inset-0 bg-black opacity-40 group-hover:opacity-0 transition-opacity" />
+              <div className="relative flex items-center gap-3">
+                 <Instagram size={24} />
+                 <span>Follow @btsesports.official</span>
+              </div>
+           </a>
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-2 mt-16 px-4">
+           {[1, 2, 3, 4, 5, 6].map(i => (
+             <div key={i} className="aspect-square bg-neutral-900 border border-white/5 relative group overflow-hidden">
+                <img 
+                  referrerPolicy="no-referrer"
+                  src={`https://images.unsplash.com/photo-${1500000000000 + i}?auto=format&fit=crop&q=60&w=400`} 
+                  alt="Insta Feed" 
+                  className="w-full h-full object-cover opacity-30 group-hover:opacity-100 group-hover:scale-110 transition-all duration-700" 
+                />
+                <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/40">
+                   <Instagram className="text-white" size={24} />
+                </div>
+             </div>
+           ))}
+        </div>
+      </div>
+
+      <SquadAchievementGallery achievements={dbAchievements} />
 
       {/* Player Detail Modal */}
       <AnimatePresence>
@@ -877,17 +1022,17 @@ const RosterPage = ({ onToast }: { onToast: (t: string, m: string) => void }) =>
                   <div className="w-full space-y-4">
                     <div className="flex justify-center gap-4 mb-6">
                       {selectedPlayer.instagram && (
-                        <a href={selectedPlayer.instagram} target="_blank" rel="noreferrer" className="w-10 h-10 rounded-full border border-white/10 flex items-center justify-center text-neutral-500 hover:border-gold hover:text-gold transition-all">
+                        <a href={formatSocialLink(selectedPlayer.instagram, 'instagram')} target="_blank" rel="noreferrer" className="w-10 h-10 rounded-full border border-white/10 flex items-center justify-center text-neutral-500 hover:border-gold hover:text-gold transition-all">
                           <Instagram size={18} />
                         </a>
                       )}
                       {selectedPlayer.youtube && (
-                        <a href={selectedPlayer.youtube} target="_blank" rel="noreferrer" className="w-10 h-10 rounded-full border border-white/10 flex items-center justify-center text-neutral-500 hover:border-gold hover:text-gold transition-all">
+                        <a href={formatSocialLink(selectedPlayer.youtube, 'youtube')} target="_blank" rel="noreferrer" className="w-10 h-10 rounded-full border border-white/10 flex items-center justify-center text-neutral-500 hover:border-gold hover:text-gold transition-all">
                           <Youtube size={18} />
                         </a>
                       )}
                       {selectedPlayer.discord && (
-                        <a href={`https://discord.com/users/${selectedPlayer.discord}`} target="_blank" rel="noreferrer" className="w-10 h-10 rounded-full border border-white/10 flex items-center justify-center text-neutral-500 hover:border-gold hover:text-gold transition-all">
+                        <a href={formatSocialLink(selectedPlayer.discord, 'discord')} target="_blank" rel="noreferrer" className="w-10 h-10 rounded-full border border-white/10 flex items-center justify-center text-neutral-500 hover:border-gold hover:text-gold transition-all">
                           <MessageSquare size={18} />
                         </a>
                       )}
@@ -2216,7 +2361,7 @@ const ResultsPage = ({ onToast, isAdmin }: { onToast: (t: string, m: string) => 
 };
 
 const AdminDashboard = ({ onToast, adminRole, user }: { onToast: (t: string, m: string) => void, adminRole: string | null, user: User | null }) => {
-  const [activeTab, setActiveTab] = useState<'tournaments' | 'applications' | 'results' | 'highlights' | 'squad' | 'scrims' | 'registrations' | 'divisions' | 'users' | 'admins' | 'stats' | 'live'>('tournaments');
+  const [activeTab, setActiveTab] = useState<'tournaments' | 'applications' | 'results' | 'highlights' | 'squad' | 'scrims' | 'registrations' | 'divisions' | 'users' | 'admins' | 'stats' | 'live' | 'achievements'>('tournaments');
   const [squad, setSquad] = useState<any[]>([]);
   const [users, setUsers] = useState<any[]>([]);
   const [admins, setAdmins] = useState<any[]>([]);
@@ -2225,6 +2370,7 @@ const AdminDashboard = ({ onToast, adminRole, user }: { onToast: (t: string, m: 
   const [tournaments, setTournaments] = useState<any[]>([]);
   const [results, setResults] = useState<any[]>([]);
   const [highlights, setHighlights] = useState<any[]>([]);
+  const [achievements, setAchievements] = useState<any[]>([]);
   const [registrations, setRegistrations] = useState<any[]>([]);
   const [divisions, setDivisions] = useState<any[]>([]);
   const [selectedTournamentForRegs, setSelectedTournamentForRegs] = useState<string | null>(null);
@@ -2235,6 +2381,7 @@ const AdminDashboard = ({ onToast, adminRole, user }: { onToast: (t: string, m: 
   const [editingHighlightId, setEditingHighlightId] = useState<string | null>(null);
   const [editingSquadId, setEditingSquadId] = useState<string | null>(null);
   const [editingDivisionId, setEditingDivisionId] = useState<string | null>(null);
+  const [editingAchievementId, setEditingAchievementId] = useState<string | null>(null);
   
   const [matchStatForm, setMatchStatForm] = useState({
     playerId: '',
@@ -2277,6 +2424,14 @@ const AdminDashboard = ({ onToast, adminRole, user }: { onToast: (t: string, m: 
     thumb: '',
     date: ''
   });
+  const [achievementForm, setAchievementForm] = useState({
+    title: '',
+    description: '',
+    imageUrl: '',
+    date: '',
+    game: 'BGMI',
+    division: 'prime'
+  });
   const [squadForm, setSquadForm] = useState({
     ign: '',
     role: 'Assaulter',
@@ -2293,7 +2448,8 @@ const AdminDashboard = ({ onToast, adminRole, user }: { onToast: (t: string, m: 
     instagram: '',
     youtube: '',
     discord: '',
-    squadNumber: ''
+    squadNumber: '',
+    game: 'BGMI'
   });
 
   const availableTabs = [
@@ -2303,6 +2459,7 @@ const AdminDashboard = ({ onToast, adminRole, user }: { onToast: (t: string, m: 
     { id: 'stats', roles: ['Super Admin', 'Tournament Manager', 'Head Scout'] },
     { id: 'live', roles: ['Super Admin', 'Content Moderator'] },
     { id: 'highlights', roles: ['Super Admin', 'Content Moderator'] },
+    { id: 'achievements', roles: ['Super Admin', 'Content Moderator'] },
     { id: 'scrims', roles: ['Super Admin', 'Content Moderator'] },
     { id: 'divisions', roles: ['Super Admin', 'Content Moderator'] },
     { id: 'applications', roles: ['Super Admin', 'Head Scout'] },
@@ -2385,7 +2542,8 @@ const AdminDashboard = ({ onToast, adminRole, user }: { onToast: (t: string, m: 
       instagram: s.instagram || '',
       youtube: s.youtube || '',
       discord: s.discord || '',
-      squadNumber: s.squadNumber || ''
+      squadNumber: s.squadNumber || '',
+      game: s.game || 'BGMI'
     });
     setShowCreateForm(true);
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -2406,6 +2564,20 @@ const AdminDashboard = ({ onToast, adminRole, user }: { onToast: (t: string, m: 
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  const startEditingAchievement = (a: any) => {
+    setEditingAchievementId(a.id);
+    setAchievementForm({
+      title: a.title || '',
+      description: a.description || '',
+      imageUrl: a.imageUrl || '',
+      date: a.date || '',
+      game: a.game || 'BGMI',
+      division: a.division || 'prime'
+    });
+    setShowCreateForm(true);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   const cancelForm = () => {
     setShowCreateForm(false);
     setEditingTournamentId(null);
@@ -2413,6 +2585,7 @@ const AdminDashboard = ({ onToast, adminRole, user }: { onToast: (t: string, m: 
     setEditingHighlightId(null);
     setEditingSquadId(null);
     setEditingDivisionId(null);
+    setEditingAchievementId(null);
     setTournamentForm({
       name: '',
       game: 'BGMI',
@@ -2439,6 +2612,14 @@ const AdminDashboard = ({ onToast, adminRole, user }: { onToast: (t: string, m: 
       thumb: '',
       date: ''
     });
+    setAchievementForm({
+      title: '',
+      description: '',
+      imageUrl: '',
+      date: '',
+      game: 'BGMI',
+      division: 'prime'
+    });
     setSquadForm({
       ign: '',
       role: 'Assaulter',
@@ -2455,7 +2636,8 @@ const AdminDashboard = ({ onToast, adminRole, user }: { onToast: (t: string, m: 
       instagram: '',
       youtube: '',
       discord: '',
-      squadNumber: ''
+      squadNumber: '',
+      game: 'BGMI'
     });
     setDivisionForm({
       key: '',
@@ -2497,6 +2679,10 @@ const AdminDashboard = ({ onToast, adminRole, user }: { onToast: (t: string, m: 
         const q = query(collection(db, 'highlights'), orderBy('createdAt', 'desc'));
         const snap = await getDocs(q);
         setHighlights(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      } else if (activeTab === 'achievements') {
+        const q = query(collection(db, 'achievements'), orderBy('createdAt', 'desc'));
+        const snap = await getDocs(q);
+        setAchievements(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
       } else if (activeTab === 'scrims') {
         const q = query(collection(db, 'scrims'), orderBy('createdAt', 'desc'));
         const snap = await getDocs(q);
@@ -2868,6 +3054,48 @@ const AdminDashboard = ({ onToast, adminRole, user }: { onToast: (t: string, m: 
     }
   };
 
+  const submitAchievement = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!achievementForm.title || !achievementForm.imageUrl) {
+      onToast('Error', 'Title and image URL are required.');
+      return;
+    }
+
+    try {
+      const payload = {
+        ...achievementForm,
+        updatedAt: serverTimestamp()
+      };
+
+      if (editingAchievementId) {
+        await updateDoc(doc(db, 'achievements', editingAchievementId), payload);
+        onToast('Updated', 'Achievement updated.');
+      } else {
+        await addDoc(collection(db, 'achievements'), {
+          ...payload,
+          createdAt: serverTimestamp()
+        });
+        onToast('Success', 'Achievement added to gallery.');
+      }
+
+      cancelForm();
+      fetchData();
+    } catch (error) {
+      reportFirestoreError(error, editingAchievementId ? 'update' : 'create', 'achievements', onToast);
+    }
+  };
+
+  const deleteAchievement = async (id: string) => {
+    if (!confirm('Permanently remove this achievement?')) return;
+    try {
+      await deleteDoc(doc(db, 'achievements', id));
+      onToast('Deleted', 'Achievement removed.');
+      fetchData();
+    } catch (error) {
+      reportFirestoreError(error, 'delete', `achievements/${id}`, onToast);
+    }
+  };
+
   const submitSquadMember = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!squadForm.ign) {
@@ -2906,6 +3134,7 @@ const AdminDashboard = ({ onToast, adminRole, user }: { onToast: (t: string, m: 
         instagram: squadForm.instagram,
         youtube: squadForm.youtube,
         discord: squadForm.discord,
+        game: squadForm.game,
         updatedAt: serverTimestamp()
       };
 
@@ -3283,6 +3512,16 @@ const AdminDashboard = ({ onToast, adminRole, user }: { onToast: (t: string, m: 
                           />
                        </div>
                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest">Combat Game</label>
+                          <select 
+                            value={squadForm.game}
+                            onChange={(e) => setSquadForm({...squadForm, game: e.target.value})}
+                            className="w-full bg-black/40 border border-white/10 p-3 text-sm text-white focus:border-gold outline-none"
+                          >
+                             {['BGMI', 'Free Fire', 'COD', 'Valorant'].map(g => <option key={g} value={g}>{g}</option>)}
+                          </select>
+                       </div>
+                       <div className="space-y-1">
                           <label className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest">Division</label>
                           <select 
                             value={squadForm.div}
@@ -3290,9 +3529,9 @@ const AdminDashboard = ({ onToast, adminRole, user }: { onToast: (t: string, m: 
                             className="w-full bg-black/40 border border-white/10 p-3 text-sm text-white focus:border-gold outline-none"
                           >
                              {divisions.length > 0 ? (
-                               divisions.map(d => <option key={d.id} value={d.key}>{d.name}</option>)
+                                divisions.map(d => <option key={d.id} value={d.key}>{d.name}</option>)
                              ) : (
-                               Object.entries(DIVISIONS).map(([key, d]) => <option key={key} value={key}>{d.name}</option>)
+                                Object.entries(DIVISIONS).map(([key, d]) => <option key={key} value={key}>{d.name}</option>)
                              )}
                           </select>
                        </div>
@@ -3370,11 +3609,11 @@ const AdminDashboard = ({ onToast, adminRole, user }: { onToast: (t: string, m: 
                           />
                        </div>
                        <div className="space-y-1">
-                          <label className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest">Instagram URL</label>
+                          <label className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest">Instagram Handle or URL</label>
                           <input 
                             value={squadForm.instagram}
                             onChange={(e) => setSquadForm({...squadForm, instagram: e.target.value})}
-                            placeholder="https://instagram.com/profile"
+                            placeholder="Handle (e.g. bts_official) or full URL"
                             className="w-full bg-black/40 border border-white/10 p-3 text-sm text-white focus:border-gold outline-none" 
                           />
                        </div>
@@ -3455,6 +3694,127 @@ const AdminDashboard = ({ onToast, adminRole, user }: { onToast: (t: string, m: 
                             <button onClick={() => deleteSquadMember(player.id)} className="p-2 text-neutral-600 hover:text-neon-red transition-colors">
                                <Trash2 size={14} />
                             </button>
+                         </div>
+                      </div>
+                   ))}
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'achievements' && (
+              <div className="space-y-8">
+                <div className="flex justify-between items-center bg-white/5 p-6 border border-gold/10">
+                   <div>
+                      <h4 className="font-bebas text-2xl text-gold tracking-widest">Achievement Gallery</h4>
+                      <p className="text-neutral-500 text-[10px] uppercase font-bold tracking-widest">{achievements.length} Strategic Victories Locked</p>
+                   </div>
+                   <button 
+                     onClick={() => showCreateForm ? cancelForm() : setShowCreateForm(true)}
+                     className="bg-gold text-black px-6 py-2 text-[10px] font-black uppercase tracking-widest hover:bg-white transition-all rounded-[2px]"
+                   >
+                     {showCreateForm ? 'Abort' : 'Log Victory'}
+                   </button>
+                </div>
+
+                {showCreateForm && (
+                  <motion.form 
+                    initial={{ opacity: 0, y: -20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    onSubmit={submitAchievement}
+                    className="bg-white/5 border border-gold/20 p-8 space-y-6"
+                   >
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                       <div className="space-y-1">
+                          <label className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest">Achievement Title</label>
+                          <input 
+                            required
+                            value={achievementForm.title}
+                            onChange={(e) => setAchievementForm({...achievementForm, title: e.target.value})}
+                            type="text" 
+                            placeholder="e.g. Winner Winner Chicken Dinner"
+                            className="w-full bg-black/40 border border-white/10 p-3 text-sm text-white focus:border-gold outline-none" 
+                          />
+                       </div>
+                       <div className="space-y-1">
+                          <label className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest">Image URL (Victory Screenshot)</label>
+                          <input 
+                            required
+                            value={achievementForm.imageUrl}
+                            onChange={(e) => setAchievementForm({...achievementForm, imageUrl: e.target.value})}
+                            type="url" 
+                            className="w-full bg-black/40 border border-white/10 p-3 text-sm text-white focus:border-gold outline-none" 
+                          />
+                       </div>
+                       <div className="space-y-1">
+                          <label className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest">Date</label>
+                          <input 
+                            required
+                            value={achievementForm.date}
+                            onChange={(e) => setAchievementForm({...achievementForm, date: e.target.value})}
+                            type="text" 
+                            placeholder="e.g. 24 April 2024"
+                            className="w-full bg-black/40 border border-white/10 p-3 text-sm text-white focus:border-gold outline-none" 
+                          />
+                       </div>
+                       <div className="space-y-1">
+                          <label className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest">Game</label>
+                          <select 
+                            value={achievementForm.game}
+                            onChange={(e) => setAchievementForm({...achievementForm, game: e.target.value})}
+                            className="w-full bg-black/40 border border-white/10 p-3 text-sm text-white focus:border-gold outline-none"
+                          >
+                             {['BGMI', 'Free Fire', 'COD', 'Valorant'].map(g => <option key={g} value={g}>{g}</option>)}
+                          </select>
+                       </div>
+                       <div className="space-y-1">
+                          <label className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest">Division (Optional)</label>
+                          <select 
+                            value={achievementForm.division}
+                            onChange={(e) => setAchievementForm({...achievementForm, division: e.target.value})}
+                            className="w-full bg-black/40 border border-white/10 p-3 text-sm text-white focus:border-gold outline-none"
+                          >
+                             {divisions.map(d => <option key={d.key} value={d.key}>{d.name}</option>)}
+                          </select>
+                       </div>
+                       <div className="space-y-1 md:col-span-2 lg:col-span-3">
+                          <label className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest">Description</label>
+                          <textarea 
+                            value={achievementForm.description}
+                            onChange={(e) => setAchievementForm({...achievementForm, description: e.target.value})}
+                            rows={3}
+                            placeholder="Briefly describe this victory..."
+                            className="w-full bg-black/40 border border-white/10 p-3 text-sm text-white focus:border-gold outline-none resize-none" 
+                          />
+                       </div>
+                    </div>
+                    <div className="flex justify-end">
+                       <button type="submit" className="bg-gold text-black px-12 py-3 text-xs font-black uppercase tracking-[0.2em] hover:bg-white transition-all">
+                          {editingAchievementId ? 'Update Log' : 'Secure Archive'}
+                       </button>
+                    </div>
+                  </motion.form>
+                )}
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                   {achievements.map(ach => (
+                      <div key={ach.id} className="bg-neutral-900 border border-white/5 group hover:border-gold/20 transition-all overflow-hidden">
+                         <div className="aspect-video relative overflow-hidden">
+                            <img referrerPolicy="no-referrer" src={ach.imageUrl} alt={ach.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" />
+                            <div className="absolute top-2 left-2 bg-black/60 backdrop-blur-md px-2 py-1 text-[8px] font-black text-gold uppercase tracking-widest border border-gold/20">
+                               {ach.game}
+                            </div>
+                         </div>
+                         <div className="p-4 space-y-2">
+                            <h5 className="font-bebas text-xl text-white tracking-widest truncate">{ach.title}</h5>
+                            <div className="text-[10px] text-neutral-500 font-bold uppercase tracking-widest">{ach.date}</div>
+                            <div className="flex justify-end gap-2 pt-2 border-t border-white/5">
+                               <button onClick={() => startEditingAchievement(ach)} className="p-2 text-neutral-600 hover:text-gold transition-colors">
+                                  <Settings size={14} />
+                               </button>
+                               <button onClick={() => deleteAchievement(ach.id)} className="p-2 text-neutral-600 hover:text-neon-red transition-colors">
+                                  <Trash2 size={14} />
+                               </button>
+                            </div>
                          </div>
                       </div>
                    ))}

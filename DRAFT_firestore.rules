@@ -1,0 +1,55 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 0. Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helpers
+    function isSignedIn() { return request.auth != null; }
+    function isVerified() { return isSignedIn() && request.auth.token.email_verified == true; }
+    function isOwner(userId) { return isSignedIn() && request.auth.uid == userId; }
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+    function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
+
+    // User Validation
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'email']) &&
+             data.uid == request.auth.uid &&
+             data.email == request.auth.token.email &&
+             (data.get('ign', '') is string && data.get('ign', '').size() <= 64) &&
+             (data.get('role', 'Assaulter') in ['IGL', 'Assaulter', 'Sniper', 'Support']) &&
+             (data.get('createdAt', request.time) == request.time || data.get('createdAt', existing().createdAt) == existing().createdAt);
+    }
+
+    match /users/{userId} {
+      allow get: if isSignedIn();
+      allow list: if isSignedIn() && resource.data.uid == request.auth.uid;
+      allow create: if isVerified() && isOwner(userId) && isValidId(userId) && isValidUser(incoming());
+      allow update: if isVerified() && isOwner(userId) && isValidUser(incoming()) &&
+                    incoming().diff(existing()).affectedKeys().hasOnly(['ign', 'role', 'division', 'kd', 'matches', 'updatedAt']) &&
+                    incoming().updatedAt == request.time;
+    }
+
+    // Application Validation
+    function isValidApplication(data) {
+      return data.keys().hasAll(['uid', 'ign', 'game', 'fullName', 'createdAt', 'status']) &&
+             data.uid == request.auth.uid &&
+             data.status == 'pending' &&
+             data.createdAt == request.time &&
+             data.fullName is string && data.fullName.size() <= 128 &&
+             data.ign is string && data.ign.size() <= 64 &&
+             data.game is string && data.game.size() <= 64;
+    }
+
+    match /applications/{appId} {
+      allow get: if isVerified() && resource.data.uid == request.auth.uid;
+      allow list: if isVerified() && resource.data.uid == request.auth.uid;
+      allow create: if isVerified() && isValidId(appId) && isValidApplication(incoming());
+      // Users cannot update or delete applications once submitted
+      allow update, delete: if false;
+    }
+  }
+}

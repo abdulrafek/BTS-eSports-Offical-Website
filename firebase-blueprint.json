@@ -1,0 +1,305 @@
+{
+  "entities": {
+    "User": {
+      "title": "User Profile",
+      "description": "User account information and public profile.",
+      "type": "object",
+      "properties": {
+        "ign": { "type": "string", "description": "In-game name" },
+        "uid": { "type": "string", "description": "Firebase Auth UID" },
+        "email": { "type": "string", "format": "email" },
+        "role": { "type": "string", "enum": ["IGL", "Assaulter", "Sniper", "Support", "Squad Member", "Admin"] },
+        "systemId": { "type": "string", "description": "Generated unique system ID" },
+        "division": { "type": "string" },
+        "kd": { "type": "string" },
+        "matches": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email"]
+    },
+    "Application": {
+      "title": "Recruitment Application",
+      "description": "User application to join the eSports organization.",
+      "type": "object",
+      "properties": {
+        "fullName": { "type": "string" },
+        "ign": { "type": "string" },
+        "uid": { "type": "string" },
+        "gameUid": { "type": "string" },
+        "age": { "type": "integer" },
+        "whatsapp": { "type": "string" },
+        "location": { "type": "string" },
+        "game": { "type": "string" },
+        "role": { "type": "string" },
+        "kd": { "type": "string" },
+        "fps": { "type": "string" },
+        "experience": { "type": "string" },
+        "activeTime": { "type": "string" },
+        "language": { "type": "string" },
+        "videoLink": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "reviewed", "accepted", "rejected"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "ign", "game", "fullName"]
+    },
+    "Tournament": {
+      "title": "Tournament",
+      "description": "A competitive event.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "game": { "type": "string" },
+        "prize": { "type": "string" },
+        "slots": { "type": "integer" },
+        "total": { "type": "integer" },
+        "date": { "type": "string" },
+        "status": { "type": "string", "enum": ["open", "closed", "finished"] },
+        "createdBy": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "game", "slots", "total", "status"]
+    },
+    "TournamentResult": {
+      "title": "Tournament Result",
+      "description": "Placement and winnings for a tournament.",
+      "type": "object",
+      "properties": {
+        "tournamentId": { "type": "string" },
+        "teamName": { "type": "string" },
+        "rank": { "type": "integer" },
+        "prizeWon": { "type": "string" },
+        "mvp": { "type": "string" },
+        "pointsTableUrl": { "type": "string", "description": "URL to the match points table image" },
+        "stats": { "type": "object" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["tournamentId", "teamName", "rank"]
+    },
+    "Admin": {
+      "title": "Admin",
+      "description": "Administrator details.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" }
+      },
+      "required": ["uid", "email"]
+    },
+    "Highlight": {
+      "title": "Tournament Highlight",
+      "description": "A notable moment or video link from a tournament.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "tag": { "type": "string" },
+        "thumb": { "type": "string" },
+        "date": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "thumb"]
+    },
+    "Registration": {
+      "title": "Tournament Registration",
+      "description": "Multi-player team registration for a specific tournament.",
+      "type": "object",
+      "properties": {
+        "teamName": { "type": "string" },
+        "leaderName": { "type": "string" },
+        "ign": { "type": "string" },
+        "playerId": { "type": "string" },
+        "discordId": { "type": "string" },
+        "contact": { "type": "string" },
+        "squad": { 
+          "type": "array",
+          "items": { 
+            "type": "object",
+            "properties": {
+              "ign": { "type": "string" },
+              "uid": { "type": "string" }
+            }
+          },
+          "description": "Additional squad members (IGN and Game UID)"
+        },
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "confirmed", "rejected"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["teamName", "leaderName", "ign", "playerId", "uid", "email"]
+    },
+    "Team": {
+      "title": "eSports Team",
+      "description": "A competitive gaming squad.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "logo": { "type": "string" },
+        "code": { "type": "string" },
+        "ownerUid": { "type": "string" },
+        "verified": { "type": "boolean" },
+        "isVisible": { "type": "boolean" },
+        "isRecruiting": { "type": "boolean" },
+        "discordUrl": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "code", "ownerUid"]
+    },
+    "TeamMember": {
+      "title": "Team Member",
+      "description": "A player or staff member in a team.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "teamId": { "type": "string" },
+        "ign": { "type": "string" },
+        "role": { "type": "string", "enum": ["IGL", "Fragger", "Sniper", "Support", "Substitute", "Coach", "Manager", "Owner"] },
+        "joinedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "teamId", "ign", "role"]
+    },
+    "TransferRequest": {
+      "title": "Transfer Request",
+      "description": "A request to join a team.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "teamId": { "type": "string" },
+        "ign": { "type": "string" },
+        "role": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "accepted", "rejected"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "teamId", "ign", "status"]
+    },
+    "SquadMember": {
+      "title": "Squad Member",
+      "description": "A member of the organization's official roster.",
+      "type": "object",
+      "properties": {
+        "ign": { "type": "string" },
+        "role": { "type": "string" },
+        "div": { "type": "string" },
+        "systemId": { "type": "string" },
+        "scrimsKills": { "type": "integer" },
+        "scrimsMatches": { "type": "integer" },
+        "tourneyKills": { "type": "integer" },
+        "tourneyMatches": { "type": "integer" },
+        "openRoomKills": { "type": "integer" },
+        "openRoomMatches": { "type": "integer" },
+        "kd": { "type": "string" },
+        "matches": { "type": "integer" },
+        "kills": { "type": "integer" },
+        "achievements": { "type": "array", "items": { "type": "string" } },
+        "uid": { "type": "string" },
+        "status": { "type": "string" },
+        "instagram": { "type": "string" },
+        "youtube": { "type": "string" },
+        "discord": { "type": "string" },
+        "kdHistory": { "type": "array", "items": { "type": "number" } },
+        "updatedAt": { "type": "string", "format": "date-time" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["ign", "role", "div"]
+    },
+    "Division": {
+      "title": "Division Configuration",
+      "description": "Dynamic organization sectors.",
+      "type": "object",
+      "properties": {
+        "key": { "type": "string" },
+        "name": { "type": "string" },
+        "desc": { "type": "string" },
+        "badgeColor": { "type": "string" },
+        "badge": { "type": "string" },
+        "badgeBorder": { "type": "string" },
+        "colorClass": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["key", "name"]
+    },
+    "Scrim": {
+      "title": "Scrim Session",
+      "description": "A practice match record.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "date": { "type": "string" },
+        "result": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title"]
+    },
+    "SiteConfig": {
+      "title": "Site Configuration",
+      "description": "Global settings for the application.",
+      "type": "object",
+      "properties": {
+        "isLive": { "type": "boolean" },
+        "videoId": { "type": "string" },
+        "title": { "type": "string" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      }
+    }
+  },
+  "firestore": {
+    "users/{userId}": {
+      "schema": "User",
+      "description": "User profiles by UID"
+    },
+    "applications/{applicationId}": {
+      "schema": "Application",
+      "description": "Recruitment applications"
+    },
+    "tournaments/{tournamentId}": {
+      "schema": "Tournament",
+      "description": "Active and past tournaments"
+    },
+    "results/{resultId}": {
+      "schema": "TournamentResult",
+      "description": "Tournament results and placements"
+    },
+    "admins/{userId}": {
+      "schema": "Admin",
+      "description": "System administrators"
+    },
+    "highlights/{highlightId}": {
+      "schema": "Highlight",
+      "description": "Tournament video highlights"
+    },
+    "tournaments/{tournamentId}/registrations/{registrationId}": {
+      "schema": "Registration",
+      "description": "Team entries for a specific tournament"
+    },
+    "teams/{teamId}": {
+      "schema": "Team",
+      "description": "Team definitions"
+    },
+    "teams/{teamId}/members/{memberId}": {
+      "schema": "TeamMember",
+      "description": "Members of a specific team"
+    },
+    "teams/{teamId}/requests/{requestId}": {
+      "schema": "TransferRequest",
+      "description": "Requests to join this team"
+    },
+    "squad/{memberId}": {
+      "schema": "SquadMember",
+      "description": "Official squad roster"
+    },
+    "scrims/{scrimId}": {
+      "schema": "Scrim",
+      "description": "Practice session records"
+    },
+    "divisions/{divisionId}": {
+      "schema": "Division",
+      "description": "Dynamic organization sectors"
+    },
+    "site_config/{configId}": {
+      "schema": "SiteConfig",
+      "description": "Global application settings"
+    }
+  }
+}

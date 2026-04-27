@@ -1,0 +1,41 @@
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Rajdhani:wght@300;400;500;600;700&family=Orbitron:wght@400;700;900&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Rajdhani", ui-sans-serif, system-ui, sans-serif;
+  --font-bebas: "Bebas Neue", sans-serif;
+  --font-orbitron: "Orbitron", ui-monospace, SFMono-Regular, monospace;
+
+  --color-gold: #FFD700;
+  --color-gold-dim: #B8960C;
+  --color-gold-light: #FFF0A0;
+  --color-neon-red: #FF2244;
+  --color-dark-bg: #0A0A0A;
+}
+
+@layer base {
+  body {
+    @apply bg-dark-bg text-gray-200 antialiased selection:bg-gold selection:text-black;
+  }
+}
+
+@layer components {
+  .btn-clip {
+    clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 12px 100%, 0 calc(100% - 12px));
+  }
+  
+  .btn-clip-sm {
+    clip-path: polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 8px 100%, 0 calc(100% - 8px));
+  }
+}
+
+/* Custom browser scrollbar */
+::-webkit-scrollbar {
+  width: 4px;
+}
+::-webkit-scrollbar-track {
+  background: #0A0A0A;
+}
+::-webkit-scrollbar-thumb {
+  background: #FFD700;
+}

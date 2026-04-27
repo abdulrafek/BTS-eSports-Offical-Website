@@ -1,0 +1,247 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 0. Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Helpers ---
+    function isSignedIn() { return request.auth != null; }
+    function isVerified() { return isSignedIn() && request.auth.token.email_verified == true; }
+    function isOwner(userId) { return isSignedIn() && request.auth.uid == userId; }
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+    function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
+    
+    function isAdmin() { 
+      return isSignedIn() && 
+             (request.auth.token.email == "argaming2020119@gmail.com" || 
+              exists(/databases/$(database)/documents/admins/$(request.auth.uid)));
+    }
+
+    function getAdminRole() {
+      return get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.role;
+    }
+
+    function hasAdminRole(role) {
+      let adminPath = /databases/$(database)/documents/admins/$(request.auth.uid);
+      let adminDoc = exists(adminPath) ? get(adminPath) : null;
+      let currentRole = adminDoc != null ? adminDoc.data.role : null;
+      return isSignedIn() && (
+        request.auth.token.email == "argaming2020119@gmail.com" || 
+        currentRole == "Super Admin" || 
+        currentRole == role
+      );
+    }
+
+    function isTournamentManager() { return hasAdminRole("Tournament Manager"); }
+    function isContentModerator() { return hasAdminRole("Content Moderator"); }
+    function isHeadScout() { return hasAdminRole("Head Scout"); }
+    function isSuperAdmin() { return hasAdminRole("Super Admin"); }
+
+    // --- Entity Validations ---
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'email']) &&
+             data.uid == request.auth.uid &&
+             data.email == request.auth.token.email &&
+             (data.get('ign', '') is string) &&
+             (data.get('systemId', '') is string) &&
+             (data.get('role', 'User') is string) &&
+             (data.get('division', '') is string) &&
+             (data.get('teamId', '') is string) &&
+             (data.get('teamName', '') is string);
+    }
+
+    function isValidApplication(data) {
+      return data.keys().hasAll(['uid', 'ign', 'game', 'fullName', 'createdAt', 'status']) &&
+             data.uid == request.auth.uid &&
+             data.status == 'pending' &&
+             data.createdAt == request.time &&
+             data.fullName is string && data.fullName.size() <= 128 &&
+             data.ign is string && data.ign.size() <= 64 &&
+             data.game is string && data.game.size() <= 64;
+    }
+
+    function isValidTournament(data) {
+      return data.keys().hasAll(['name', 'game', 'slots', 'total', 'status']) &&
+             data.name is string && data.name.size() <= 200 &&
+             data.game is string && data.game.size() <= 100 &&
+             data.slots is int && data.total is int &&
+             data.status in ['upcoming', 'open', 'closed', 'ongoing', 'finished'];
+    }
+
+    function isValidResult(data) {
+      return data.keys().hasAll(['tournamentId', 'teamName', 'rank']) &&
+             data.tournamentId is string &&
+             data.teamName is string && data.teamName.size() <= 128 &&
+             data.rank is int && data.rank >= 1 && data.rank <= 50;
+    }
+
+    function isValidHighlight(data) {
+      return data.keys().hasAll(['title', 'thumb']) &&
+             data.title is string && data.title.size() <= 200 &&
+             data.thumb is string && data.thumb.size() <= 500;
+    }
+
+    function isValidSquadMember(data) {
+      return data.keys().hasAll(['ign', 'role', 'div']) &&
+             data.ign is string && data.ign.size() <= 64 &&
+             data.role is string && data.role.size() <= 64 &&
+             data.div is string && data.div.size() <= 64 &&
+             (data.get('systemId', '') is string) &&
+             (data.get('instagram', '') is string) &&
+             (data.get('youtube', '') is string) &&
+             (data.get('discord', '') is string) &&
+             (data.get('squadNumber', '') is string);
+    }
+
+    function isValidDivision(data) {
+      return data.keys().hasAll(['key', 'name']) &&
+             data.key is string && data.key.size() <= 50 &&
+             data.name is string && data.name.size() <= 100;
+    }
+
+    function isValidScrim(data) {
+      return data.keys().hasAll(['title']) &&
+             data.title is string && data.title.size() <= 200;
+    }
+
+    function isValidRegistration(data, tId) {
+      return data.keys().hasAll(['teamName', 'leaderName', 'ign', 'playerId', 'uid', 'email', 'createdAt', 'status']) &&
+             data.uid == request.auth.uid &&
+             data.email == request.auth.token.email &&
+             data.status == 'pending' &&
+             data.createdAt == request.time &&
+             data.teamName is string && data.teamName.size() <= 64 &&
+             data.leaderName is string && data.leaderName.size() <= 128 &&
+             data.ign is string && data.ign.size() <= 64 &&
+             data.playerId is string && data.playerId.size() <= 32 &&
+             (data.get('discordId', '') is string) &&
+             get(/databases/$(database)/documents/tournaments/$(tId)).data.status == 'open';
+    }
+
+    // --- Collections ---
+
+    match /users/{userId} {
+      allow get: if isSignedIn();
+      allow list: if isHeadScout() || isTournamentManager();
+      allow create: if isSignedIn() && isOwner(userId) && isValidId(userId) && isValidUser(incoming());
+      allow update: if (isSignedIn() && isOwner(userId) && isValidUser(incoming()) &&
+                    incoming().diff(existing()).affectedKeys().hasOnly(['ign', 'role', 'division', 'kd', 'matches', 'updatedAt', 'teamId', 'teamName', 'systemId']) &&
+                    (incoming().get('updatedAt', request.time) == request.time)) || isHeadScout() || isTournamentManager();
+    }
+
+    match /squad/{memberId} {
+      allow read: if true;
+      allow create: if isHeadScout() && isValidSquadMember(incoming());
+      allow update: if (isHeadScout() && isValidSquadMember(incoming())) || 
+                      (isSignedIn() && 
+                       resource.data.uid == request.auth.uid && 
+                       incoming().get('uid', '') == existing().get('uid', '') && 
+                       incoming().get('role', '') == existing().get('role', '') && 
+                       incoming().get('div', '') == existing().get('div', '') &&
+                       isValidSquadMember(incoming()) &&
+                       incoming().diff(existing()).affectedKeys().hasOnly(['ign', 'instagram', 'youtube', 'discord', 'updatedAt', 'squadNumber']));
+      allow delete: if isHeadScout();
+    }
+
+    match /scrims/{scrimId} {
+      allow read: if true;
+      allow create, update, delete: if isContentModerator() && isValidScrim(incoming());
+    }
+
+    match /divisions/{divisionId} {
+      allow read: if true;
+      allow create, update, delete: if isContentModerator() && isValidDivision(incoming());
+    }
+
+    match /applications/{appId} {
+      allow get: if (isSignedIn() && resource.data.uid == request.auth.uid) || isHeadScout();
+      allow list: if (isSignedIn() && resource.data.uid == request.auth.uid) || isHeadScout(); 
+      allow create: if isSignedIn() && isValidId(appId) && isValidApplication(incoming());
+      allow update: if isHeadScout() && (
+        (incoming().diff(existing()).affectedKeys().hasOnly(['status'])) ||
+        (incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt']) && incoming().updatedAt == request.time)
+      );
+      allow delete: if isHeadScout();
+    }
+
+    match /tournaments/{tournamentId} {
+      allow read: if true;
+      allow create: if isTournamentManager() && isValidTournament(incoming()) && (incoming().get('createdAt', request.time) == request.time);
+      allow update: if (isTournamentManager() && isValidTournament(incoming()) && (incoming().get('updatedAt', request.time) == request.time)) ||
+                    (isSignedIn() && incoming().diff(existing()).affectedKeys().hasOnly(['joinedCount']));
+      allow delete: if isTournamentManager();
+
+      match /registrations/{regId} {
+        allow list: if isSignedIn();
+        allow get: if isSignedIn() && (resource.data.uid == request.auth.uid || isTournamentManager());
+        allow create: if isVerified() && regId == request.auth.uid && isValidRegistration(incoming(), tournamentId);
+        allow update: if isTournamentManager();
+        allow delete: if isTournamentManager() || (isSignedIn() && resource.data.uid == request.auth.uid && resource.data.status == 'pending');
+      }
+    }
+
+    match /{path=**}/registrations/{regId} {
+      allow list: if isSignedIn() && (resource.data.uid == request.auth.uid || isTournamentManager());
+    }
+
+    match /results/{resultId} {
+      allow read: if true;
+      allow create: if isTournamentManager() && isValidResult(incoming()) && (incoming().get('createdAt', request.time) == request.time);
+      allow update: if isTournamentManager() && isValidResult(incoming()) && (incoming().get('updatedAt', request.time) == request.time);
+      allow delete: if isTournamentManager();
+    }
+
+    match /highlights/{highlightId} {
+      allow read: if true;
+      allow create: if isContentModerator() && isValidHighlight(incoming()) && (incoming().get('createdAt', request.time) == request.time);
+      allow update: if isContentModerator() && isValidHighlight(incoming()) && (incoming().get('updatedAt', request.time) == request.time);
+      allow delete: if isContentModerator();
+    }
+
+    match /teams/{teamId} {
+      allow read: if true;
+      allow create: if isVerified();
+      allow update, delete: if isAdmin() || (isSignedIn() && existing().ownerUid == request.auth.uid);
+
+      match /members/{memberId} {
+        allow read: if true;
+        allow create: if isVerified() && (
+          get(/databases/$(database)/documents/teams/$(teamId)).data.ownerUid == request.auth.uid ||
+          request.auth.uid == memberId
+        );
+        allow delete: if isAdmin() || (isSignedIn() && (
+          get(/databases/$(database)/documents/teams/$(teamId)).data.ownerUid == request.auth.uid ||
+          request.auth.uid == memberId
+        ));
+      }
+
+      match /requests/{requestId} {
+        allow read: if isSignedIn() && (
+          get(/databases/$(database)/documents/teams/$(teamId)).data.ownerUid == request.auth.uid || 
+          resource.data.uid == request.auth.uid
+        );
+        allow create: if isVerified() && incoming().uid == request.auth.uid;
+        allow update: if isAdmin() || (isSignedIn() && get(/databases/$(database)/documents/teams/$(teamId)).data.ownerUid == request.auth.uid);
+        allow delete: if isAdmin() || (isSignedIn() && (
+          get(/databases/$(database)/documents/teams/$(teamId)).data.ownerUid == request.auth.uid || 
+          resource.data.uid == request.auth.uid
+        ));
+      }
+    }
+
+    match /admins/{userId} {
+      allow read: if isSignedIn();
+      allow list: if isSuperAdmin();
+      allow write: if isSuperAdmin(); 
+    }
+
+    match /site_config/{configId} {
+      allow read: if true;
+      allow write: if isContentModerator();
+    }
+  }
+}

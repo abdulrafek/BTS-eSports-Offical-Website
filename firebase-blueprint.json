@@ -256,6 +256,8 @@
         "isLive": { "type": "boolean" },
         "videoId": { "type": "string" },
         "title": { "type": "string" },
+        "youtube": { "type": "string" },
+        "instagram": { "type": "string" },
         "updatedAt": { "type": "string", "format": "date-time" }
       }
     }

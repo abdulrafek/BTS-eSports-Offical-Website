@@ -166,6 +166,8 @@ const Home = ({ onNavigate, onToast }: { onNavigate: (p: Page) => void, onToast:
   const [liveConfig, setLiveConfig] = useState<{ isLive: boolean, videoId: string, title: string } | null>(null);
   const [loading, setLoading] = useState(true);
   const [currentSlide, setCurrentSlide] = useState(0);
+  const [dbAchievements, setDbAchievements] = useState<any[]>([]);
+  const [socialLinks, setSocialLinks] = useState<{ youtube: string, instagram: string }>({ youtube: '', instagram: '' });
 
   useEffect(() => {
     // Listen for live status
@@ -226,6 +228,14 @@ const Home = ({ onNavigate, onToast }: { onNavigate: (p: Page) => void, onToast:
 
         const hSnap = await getDocs(query(collection(db, 'highlights'), orderBy('createdAt', 'desc'), limit(4)));
         setDbHighlights(hSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+
+        const aSnap = await getDocs(query(collection(db, 'achievements'), orderBy('date', 'desc'), limit(8)));
+        setDbAchievements(aSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+
+        const sSnap = await getDoc(doc(db, 'site_config', 'social'));
+        if (sSnap.exists()) {
+          setSocialLinks(sSnap.data() as any);
+        }
       } catch (error) {
         console.error("Error fetching home data:", error);
       } finally {
@@ -515,7 +525,7 @@ const Home = ({ onNavigate, onToast }: { onNavigate: (p: Page) => void, onToast:
                 >
                   <div className="relative aspect-video overflow-hidden border border-white/10 group-hover:border-gold/40 transition-all">
                     <img 
-                      src={h.thumb} 
+                      src={getSafeImageUrl(h.thumb)} 
                       alt={h.title}
                       className="w-full h-full object-cover opacity-60 group-hover:opacity-100 group-hover:scale-105 transition-all duration-500"
                     />
@@ -539,6 +549,9 @@ const Home = ({ onNavigate, onToast }: { onNavigate: (p: Page) => void, onToast:
           </div>
         </div>
       </section>
+
+      <IntelUplink socialLinks={socialLinks} />
+      <SquadAchievementGallery achievements={dbAchievements} />
     </div>
   );
 };
@@ -567,7 +580,7 @@ const TournamentCard = ({ tournament, onToast, user, onNavigate }: { tournament:
       <div 
         className="p-6 border-b border-gold/10 relative overflow-hidden"
         style={tournament.imageUrl ? {
-          backgroundImage: `linear-gradient(to bottom, rgba(0,0,0,0.7), rgba(0,0,0,0.9)), url(${tournament.imageUrl})`,
+          backgroundImage: `linear-gradient(to bottom, rgba(0,0,0,0.7), rgba(0,0,0,0.9)), url(${getSafeImageUrl(tournament.imageUrl)})`,
           backgroundSize: 'cover',
           backgroundPosition: 'center'
         } : {
@@ -638,7 +651,7 @@ const TournamentCard = ({ tournament, onToast, user, onNavigate }: { tournament:
         <div className="flex flex-wrap gap-4 mt-4 pt-4 border-t border-white/5">
           {tournament.discordLink && (
             <a 
-              href={tournament.discordLink} 
+              href={formatSocialLink(tournament.discordLink, 'discord')} 
               target="_blank" 
               rel="noreferrer"
               className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-[#5865F2] hover:text-white transition-colors"
@@ -648,7 +661,7 @@ const TournamentCard = ({ tournament, onToast, user, onNavigate }: { tournament:
           )}
           {tournament.instagramLink && (
             <a 
-              href={tournament.instagramLink} 
+              href={formatSocialLink(tournament.instagramLink, 'instagram')} 
               target="_blank" 
               rel="noreferrer"
               className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-[#E4405F] hover:text-white transition-colors"
@@ -658,7 +671,7 @@ const TournamentCard = ({ tournament, onToast, user, onNavigate }: { tournament:
           )}
           {tournament.youtubeLink && (
             <a 
-              href={tournament.youtubeLink} 
+              href={formatSocialLink(tournament.youtubeLink, 'youtube')} 
               target="_blank" 
               rel="noreferrer"
               className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-[#FF0000] hover:text-white transition-colors"
@@ -672,10 +685,63 @@ const TournamentCard = ({ tournament, onToast, user, onNavigate }: { tournament:
   );
 };
 
+const IntelUplink = ({ socialLinks }: { socialLinks?: { youtube?: string, instagram?: string } }) => (
+  <div className="mt-32 pb-24 border-t border-white/5 pt-24 text-center">
+    <SectionHeader 
+      tag="INTEL UPLINK" 
+      title="Stay" 
+      goldSpan="Connected" 
+      sub="Follow our official intelligence channels for recruitment alerts, high-stakes highlights, and tactical breakdowns."
+    />
+    <div className="flex flex-wrap justify-center gap-6 mt-8 px-4">
+        <a 
+          href={socialLinks?.youtube || "https://youtube.com/@btsesportsofficial"} 
+          target="_blank" 
+          rel="noreferrer"
+          className="group relative px-10 py-4 bg-red-600 text-white font-black uppercase tracking-[0.2em] overflow-hidden flex-1 sm:flex-none min-w-[240px]"
+        >
+          <div className="absolute inset-0 bg-black opacity-10 group-hover:opacity-0 transition-opacity" />
+          <div className="relative flex items-center justify-center gap-3">
+              <Youtube size={20} />
+              <span>Subscribe YouTube</span>
+          </div>
+        </a>
+        <a 
+          href={socialLinks?.instagram || "https://www.instagram.com/bts__esports"} 
+          target="_blank" 
+          rel="noreferrer"
+          className="group relative px-10 py-4 bg-gradient-to-tr from-[#f9ce34] via-[#ee2a7b] to-[#6228d7] text-white font-black uppercase tracking-[0.2em] overflow-hidden flex-1 sm:flex-none min-w-[240px]"
+        >
+          <div className="absolute inset-0 bg-black opacity-20 group-hover:opacity-0 transition-opacity" />
+          <div className="relative flex items-center justify-center gap-3">
+              <Instagram size={20} />
+              <span>Follow Instagram</span>
+          </div>
+        </a>
+    </div>
+    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-2 mt-16 px-4">
+        {[1, 2, 3, 4, 5, 6].map(i => (
+          <div key={i} className="aspect-video bg-neutral-900 border border-white/5 relative group overflow-hidden">
+            <img 
+              referrerPolicy="no-referrer"
+              src={`https://images.unsplash.com/photo-${1502000000000 + i * 100000}?auto=format&fit=crop&q=100&w=600`} 
+              alt="Social Feed" 
+              className="w-full h-full object-cover opacity-30 group-hover:opacity-100 group-hover:scale-110 transition-all duration-700" 
+            />
+            <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/40">
+                {i % 2 === 0 ? <Instagram className="text-white" size={24} /> : <Play className="text-white fill-white" size={24} />}
+            </div>
+          </div>
+        ))}
+    </div>
+  </div>
+);
+
 const SquadAchievementGallery = ({ achievements }: { achievements: any[] }) => {
   if (achievements.length === 0) return null;
+  
   return (
-    <div className="mt-24 mb-16">
+    <div className="mt-24 mb-16 overflow-hidden">
       <SectionHeader 
         tag="MISSION DEBRIEF" 
         title="Victory" 
@@ -683,50 +749,87 @@ const SquadAchievementGallery = ({ achievements }: { achievements: any[] }) => {
         sub="The digital legacy of BTS eSports. Every conquest, every trophy, every dominant performance immortalized in our achievement vault."
       />
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {achievements.map((ach, idx) => (
-          <motion.div
-            key={ach.id}
-            initial={{ opacity: 0, scale: 0.9 }}
-            whileInView={{ opacity: 1, scale: 1 }}
-            transition={{ delay: idx * 0.05 }}
-            className="bg-neutral-900 border border-white/5 relative group overflow-hidden group/card"
-          >
-             <div className="aspect-video relative overflow-hidden">
-                <img 
-                  referrerPolicy="no-referrer"
-                  src={ach.imageUrl} 
-                  alt={ach.title} 
-                  className="w-full h-full object-cover opacity-50 group-hover/card:opacity-100 group-hover/card:scale-110 transition-all duration-700" 
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-neutral-950 via-transparent to-transparent opacity-80" />
-                <div className="absolute top-3 left-3 bg-gold/90 text-black text-[8px] font-black px-2 py-0.5 uppercase tracking-widest">
-                   {ach.game}
-                </div>
-             </div>
-             <div className="p-5 space-y-2">
-                <h4 className="font-bebas text-xl text-white tracking-widest line-clamp-1 group-hover/card:text-gold transition-colors">{ach.title}</h4>
-                <div className="flex justify-between items-center text-[9px] text-neutral-500 font-bold uppercase tracking-widest">
-                   <span>{ach.date}</span>
-                   {ach.division && <span className="text-gold/60">{ach.division}</span>}
-                </div>
-                <p className="text-[10px] text-neutral-400 leading-relaxed line-clamp-2 pt-2 border-t border-white/5">{ach.description}</p>
-             </div>
-             <div className="absolute bottom-0 left-0 w-full h-[2px] bg-gold scale-x-0 group-hover/card:scale-x-100 transition-transform origin-left" />
-          </motion.div>
-        ))}
+      <div className="relative mt-12 group cursor-pointer">
+        {/* Gradients to hide edges for a cleaner cinematic look */}
+        <div className="absolute inset-y-0 left-0 w-32 bg-gradient-to-r from-black to-transparent z-10 pointer-events-none" />
+        <div className="absolute inset-y-0 right-0 w-32 bg-gradient-to-l from-black to-transparent z-10 pointer-events-none" />
+
+        <motion.div 
+          className="flex gap-6 py-4"
+          animate={achievements.length > 3 ? { x: ["0%", "-50%"] } : {}}
+          transition={{
+            duration: achievements.length * 6,
+            repeat: Infinity,
+            ease: "linear"
+          }}
+          style={{ width: 'max-content' }}
+        >
+          {(achievements.length > 3 ? [...achievements, ...achievements] : achievements).map((ach, idx) => (
+            <div
+              key={`${ach.id}-${idx}`}
+              className="w-[320px] bg-neutral-900 border border-white/5 relative group/card overflow-hidden shrink-0 hover:border-gold/30 transition-colors"
+            >
+               <div className="aspect-video relative overflow-hidden">
+                  <img 
+                    referrerPolicy="no-referrer"
+                    src={getSafeImageUrl(ach.imageUrl)} 
+                    alt={ach.title} 
+                    className="w-full h-full object-cover opacity-50 group-hover/card:opacity-100 group-hover/card:scale-110 transition-all duration-700" 
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-neutral-950 via-transparent to-transparent opacity-80" />
+                  <div className="absolute top-3 left-3 bg-gold/90 text-black text-[8px] font-black px-2 py-0.5 uppercase tracking-widest">
+                     {ach.game}
+                  </div>
+               </div>
+               <div className="p-5 space-y-2 bg-neutral-950/80 backdrop-blur-sm">
+                  <h4 className="font-bebas text-xl text-white tracking-widest line-clamp-1 group-hover/card:text-gold transition-colors">{ach.title}</h4>
+                  <div className="flex justify-between items-center text-[9px] text-neutral-500 font-bold uppercase tracking-widest">
+                     <span>{ach.date}</span>
+                     {ach.division && <span className="text-gold/60">{ach.division}</span>}
+                  </div>
+                  <p className="text-[10px] text-neutral-400 leading-relaxed line-clamp-2 pt-2 border-t border-white/5">{ach.description}</p>
+               </div>
+               <div className="absolute bottom-0 left-0 w-full h-[2px] bg-gold scale-x-0 group-hover/card:scale-x-100 transition-transform origin-left" />
+            </div>
+          ))}
+        </motion.div>
       </div>
     </div>
   );
 };
 
+const getSafeImageUrl = (url: string) => {
+  if (!url) return '';
+  const trimmed = url.trim();
+  // Handle Google Drive links
+  if (trimmed.includes('drive.google.com')) {
+    const idMatch = trimmed.match(/\/d\/(.+?)(\/|$)/) || trimmed.match(/id=(.+?)(&|$)/);
+    if (idMatch && idMatch[1]) {
+      return `https://docs.google.com/uc?export=view&id=${idMatch[1]}`;
+    }
+  }
+  return trimmed;
+};
+
 const formatSocialLink = (val: string, platform: 'instagram' | 'youtube' | 'discord') => {
   if (!val) return '';
-  if (val.startsWith('http')) return val;
-  if (platform === 'instagram') return `https://instagram.com/${val.replace('@', '')}`;
-  if (platform === 'youtube') return `https://youtube.com/@${val.replace('@', '')}`;
-  if (platform === 'discord') return `https://discord.com/users/${val}`;
-  return val;
+  const trimmed = val.trim();
+  if (trimmed.startsWith('http')) return trimmed;
+  if (trimmed.startsWith('www.')) return `https://${trimmed}`;
+  
+  if (platform === 'instagram') {
+    if (trimmed.includes('instagram.com/')) return `https://${trimmed.replace('https://', '').replace('http://', '')}`;
+    return `https://instagram.com/${trimmed.replace('@', '')}`;
+  }
+  if (platform === 'youtube') {
+    if (trimmed.includes('youtube.com/')) return `https://${trimmed.replace('https://', '').replace('http://', '')}`;
+    return `https://youtube.com/@${trimmed.replace('@', '')}`;
+  }
+  if (platform === 'discord') {
+    if (trimmed.includes('discord.com/')) return `https://${trimmed.replace('https://', '').replace('http://', '')}`;
+    return `https://discord.com/users/${trimmed}`;
+  }
+  return trimmed;
 };
 
 const RosterPage = ({ onToast }: { onToast: (t: string, m: string) => void }) => {
@@ -737,6 +840,7 @@ const RosterPage = ({ onToast }: { onToast: (t: string, m: string) => void }) =>
   const [dbPlayers, setDbPlayers] = useState<any[]>([]);
   const [dbDivisions, setDbDivisions] = useState<any[]>([]);
   const [dbAchievements, setDbAchievements] = useState<any[]>([]);
+  const [socialLinks, setSocialLinks] = useState<{ youtube: string, instagram: string }>({ youtube: '', instagram: '' });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -746,15 +850,20 @@ const RosterPage = ({ onToast }: { onToast: (t: string, m: string) => void }) =>
         const qDivs = query(collection(db, 'divisions'), orderBy('name'));
         const qAchs = query(collection(db, 'achievements'), orderBy('date', 'desc'), limit(8));
         
-        const [playersSnap, divsSnap, achSnap] = await Promise.all([
+        const [playersSnap, divsSnap, achSnap, sSnap] = await Promise.all([
           getDocs(qPlayers),
           getDocs(qDivs),
-          getDocs(qAchs)
+          getDocs(qAchs),
+          getDoc(doc(db, 'settings', 'social'))
         ]);
         
         setDbPlayers(playersSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
         setDbDivisions(divsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
         setDbAchievements(achSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        
+        if (sSnap.exists()) {
+          setSocialLinks(sSnap.data() as any);
+        }
       } catch (error) {
         console.error(error);
       } finally {
@@ -888,13 +997,26 @@ const RosterPage = ({ onToast }: { onToast: (t: string, m: string) => void }) =>
                       className="bg-neutral-900 border border-gold/10 p-6 text-center group relative overflow-hidden cursor-pointer"
                     >
                     <div className="absolute top-0 left-[-100%] w-full h-full bg-gradient-to-r from-transparent via-gold/5 to-transparent skew-x-12 group-hover:left-[100%] transition-all duration-500" />
-                    {p.status === 'Inactive' && (
-                      <div className="absolute top-2 right-2 bg-neutral-800 text-[8px] text-white/40 px-2 py-0.5 font-black uppercase tracking-widest">Inactive</div>
+                    {p.status && p.status !== 'Active' && (
+                      <div className={`absolute top-2 right-2 text-[8px] px-2 py-0.5 font-black uppercase tracking-widest ${
+                        p.status === 'On Trial' ? 'bg-blue-600/80 text-white' : 'bg-neutral-800 text-white/40'
+                      }`}>
+                        {p.status}
+                      </div>
                     )}
                     <div className={`w-16 h-16 rounded-full bg-gradient-to-br from-gold/30 to-neon-red/30 mx-auto mb-4 flex items-center justify-center font-orbitron font-black text-xl text-black border-2 border-gold/20 ${p.status === 'Inactive' ? 'grayscale opacity-50' : ''}`}>
                       {p.ign.split('•')[1]?.charAt(0) || p.ign.charAt(0) || 'P'}
                     </div>
-                    <div className={`font-orbitron font-bold text-white text-sm truncate mb-1 ${p.status === 'Inactive' ? 'text-neutral-500' : ''}`}>{p.ign}</div>
+                    <div className={`font-orbitron font-bold text-white text-sm truncate mb-1 flex items-center justify-center gap-2 ${p.status === 'Inactive' ? 'text-neutral-500' : ''}`}>
+                      <span className="truncate">{p.ign}</span>
+                      {p.status && p.status !== 'Active' && (
+                        <span className={`flex-shrink-0 text-[7px] px-1 py-0.5 rounded-xs uppercase tracking-tighter font-black ${
+                          p.status === 'On Trial' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30' : 'bg-neutral-800 text-white/40 border border-white/5'
+                        }`}>
+                          {p.status}
+                        </span>
+                      )}
+                    </div>
                     <div className="flex flex-col gap-1 mb-2">
                       <div className="text-[10px] font-bold text-gold uppercase tracking-tighter">{p.role}</div>
                       {p.game && <div className="text-[8px] font-black text-white/40 uppercase tracking-widest">{p.game}</div>}
@@ -936,44 +1058,7 @@ const RosterPage = ({ onToast }: { onToast: (t: string, m: string) => void }) =>
         </div>
       )}
 
-      <div className="mt-32 pb-24 border-t border-white/5 pt-24 text-center">
-        <SectionHeader 
-          tag="INTEL UPLINK" 
-          title="Connect on" 
-          goldSpan="Instagram" 
-          sub="Follow the official BTS eSports intelligence channel for recruitment alerts, tournament results, and behind-the-scenes operative footage."
-        />
-        <div className="flex justify-center gap-6 mt-8">
-           <a 
-             href="https://instagram.com/btsesports.official" 
-             target="_blank" 
-             rel="noreferrer"
-             className="group relative px-12 py-4 bg-gradient-to-tr from-[#f9ce34] via-[#ee2a7b] to-[#6228d7] text-white font-black uppercase tracking-[0.3em] overflow-hidden"
-           >
-              <div className="absolute inset-0 bg-black opacity-40 group-hover:opacity-0 transition-opacity" />
-              <div className="relative flex items-center gap-3">
-                 <Instagram size={24} />
-                 <span>Follow @btsesports.official</span>
-              </div>
-           </a>
-        </div>
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-2 mt-16 px-4">
-           {[1, 2, 3, 4, 5, 6].map(i => (
-             <div key={i} className="aspect-square bg-neutral-900 border border-white/5 relative group overflow-hidden">
-                <img 
-                  referrerPolicy="no-referrer"
-                  src={`https://images.unsplash.com/photo-${1500000000000 + i}?auto=format&fit=crop&q=60&w=400`} 
-                  alt="Insta Feed" 
-                  className="w-full h-full object-cover opacity-30 group-hover:opacity-100 group-hover:scale-110 transition-all duration-700" 
-                />
-                <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/40">
-                   <Instagram className="text-white" size={24} />
-                </div>
-             </div>
-           ))}
-        </div>
-      </div>
-
+      <IntelUplink socialLinks={socialLinks} />
       <SquadAchievementGallery achievements={dbAchievements} />
 
       {/* Player Detail Modal */}
@@ -1001,7 +1086,18 @@ const RosterPage = ({ onToast }: { onToast: (t: string, m: string) => void }) =>
                       {(selectedPlayer.ign || 'P').charAt(0)}
                     </div>
                   </div>
-                  <h2 className="font-bebas text-5xl text-white tracking-widest mb-1">{selectedPlayer.ign}</h2>
+                  <div className="flex items-center justify-center gap-3 mb-1">
+                    <h2 className="font-bebas text-5xl text-white tracking-widest">{selectedPlayer.ign}</h2>
+                    {selectedPlayer.status && (
+                      <span className={`px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.2em] rounded-sm ${
+                        selectedPlayer.status === 'Active' ? 'bg-green-500/20 text-green-400 border border-green-500/30' :
+                        selectedPlayer.status === 'On Trial' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30' :
+                        'bg-neutral-800 text-white/40 border border-white/5'
+                      }`}>
+                        {selectedPlayer.status}
+                      </span>
+                    )}
+                  </div>
                   <div className="text-[10px] font-black text-gold uppercase tracking-[0.3em] mb-8">{selectedPlayer.role}</div>
                   
                   <div className="grid grid-cols-2 gap-4 w-full mb-8">
@@ -2218,7 +2314,8 @@ const TournamentPage = ({ onToast, user, onNavigate }: { onToast: (t: string, m:
                 slots: t.slots || 0,
                 total: t.total || 0,
                 status: t.status as any,
-                date: t.date || 'Upcoming'
+                date: t.date || 'Upcoming',
+                imageUrl: t.imageUrl || ''
               }} 
               onToast={onToast} 
               user={user}
@@ -2313,7 +2410,7 @@ const ResultsPage = ({ onToast, isAdmin }: { onToast: (t: string, m: string) => 
                        </span>
                     </div>
                     <img 
-                      src={res.pointsTableUrl} 
+                      src={getSafeImageUrl(res.pointsTableUrl)} 
                       alt="Match Points Table" 
                       className="w-full h-auto object-cover opacity-80 hover:opacity-100 transition-opacity" 
                       referrerPolicy="no-referrer"
@@ -2361,7 +2458,7 @@ const ResultsPage = ({ onToast, isAdmin }: { onToast: (t: string, m: string) => 
 };
 
 const AdminDashboard = ({ onToast, adminRole, user }: { onToast: (t: string, m: string) => void, adminRole: string | null, user: User | null }) => {
-  const [activeTab, setActiveTab] = useState<'tournaments' | 'applications' | 'results' | 'highlights' | 'squad' | 'scrims' | 'registrations' | 'divisions' | 'users' | 'admins' | 'stats' | 'live' | 'achievements'>('tournaments');
+  const [activeTab, setActiveTab] = useState<'tournaments' | 'applications' | 'results' | 'highlights' | 'squad' | 'scrims' | 'registrations' | 'divisions' | 'users' | 'admins' | 'stats' | 'live' | 'achievements' | 'settings'>('tournaments');
   const [squad, setSquad] = useState<any[]>([]);
   const [users, setUsers] = useState<any[]>([]);
   const [admins, setAdmins] = useState<any[]>([]);
@@ -2466,6 +2563,7 @@ const AdminDashboard = ({ onToast, adminRole, user }: { onToast: (t: string, m: 
     { id: 'squad', roles: ['Super Admin', 'Head Scout'] },
     { id: 'users', roles: ['Super Admin', 'Head Scout', 'Tournament Manager'] },
     { id: 'admins', roles: ['Super Admin'] },
+    { id: 'settings', roles: ['Super Admin'] },
   ];
 
   const filteredTabs = availableTabs.filter(tab => tab.roles.includes(adminRole || ''));
@@ -2710,6 +2808,11 @@ const AdminDashboard = ({ onToast, adminRole, user }: { onToast: (t: string, m: 
         const q = query(collection(db, 'admins'), orderBy('email'));
         const snap = await getDocs(q);
         setAdmins(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      } else if (activeTab === 'settings') {
+        const sSnap = await getDoc(doc(db, 'site_config', 'social'));
+        if (sSnap.exists()) {
+          setSocialLinksForm(sSnap.data() as any);
+        }
       } else if (activeTab === 'registrations') {
         const tSnap = await getDocs(query(collection(db, 'tournaments'), orderBy('createdAt', 'desc')));
         const allTournaments = tSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -2729,6 +2832,21 @@ const AdminDashboard = ({ onToast, adminRole, user }: { onToast: (t: string, m: 
       reportFirestoreError(error, opType as any, errorPath, onToast);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const [socialLinksForm, setSocialLinksForm] = useState({ youtube: '', instagram: '' });
+  const [isSavingSettings, setIsSavingSettings] = useState(false);
+
+  const saveSettings = async () => {
+    setIsSavingSettings(true);
+    try {
+      await setDoc(doc(db, 'site_config', 'social'), { ...socialLinksForm, updatedAt: serverTimestamp() }, { merge: true });
+      onToast('Settings Saved', 'Social media configuration updated.');
+    } catch (error) {
+      reportFirestoreError(error, 'write', 'site_config/social', onToast);
+    } finally {
+      setIsSavingSettings(false);
     }
   };
 
@@ -3596,7 +3714,7 @@ const AdminDashboard = ({ onToast, adminRole, user }: { onToast: (t: string, m: 
                             onChange={(e) => setSquadForm({...squadForm, status: e.target.value})}
                             className="w-full bg-black/40 border border-white/10 p-3 text-sm text-white focus:border-gold outline-none"
                           >
-                             {['Active', 'Inactive'].map(s => <option key={s} value={s}>{s}</option>)}
+                             {['Active', 'Inactive', 'On Trial'].map(s => <option key={s} value={s}>{s}</option>)}
                           </select>
                        </div>
                        <div className="space-y-1 md:col-span-2 lg:col-span-3">
@@ -3799,7 +3917,7 @@ const AdminDashboard = ({ onToast, adminRole, user }: { onToast: (t: string, m: 
                    {achievements.map(ach => (
                       <div key={ach.id} className="bg-neutral-900 border border-white/5 group hover:border-gold/20 transition-all overflow-hidden">
                          <div className="aspect-video relative overflow-hidden">
-                            <img referrerPolicy="no-referrer" src={ach.imageUrl} alt={ach.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" />
+                            <img referrerPolicy="no-referrer" src={getSafeImageUrl(ach.imageUrl)} alt={ach.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" />
                             <div className="absolute top-2 left-2 bg-black/60 backdrop-blur-md px-2 py-1 text-[8px] font-black text-gold uppercase tracking-widest border border-gold/20">
                                {ach.game}
                             </div>
@@ -4664,7 +4782,7 @@ const AdminDashboard = ({ onToast, adminRole, user }: { onToast: (t: string, m: 
                     highlights.map(h => (
                       <div key={h.id} className="bg-neutral-900 border border-white/10 group hover:border-gold/30 transition-all flex flex-col overflow-hidden">
                         <div className="relative aspect-video">
-                          <img src={h.thumb} alt="" className="w-full h-full object-cover opacity-50 group-hover:opacity-80 transition-all" />
+                          <img src={getSafeImageUrl(h.thumb)} alt="" className="w-full h-full object-cover opacity-50 group-hover:opacity-80 transition-all" />
                           <div className="absolute top-2 left-2 bg-gold text-black text-[8px] font-black px-1.5 py-0.5 uppercase tracking-widest">{h.tag}</div>
                         </div>
                         <div className="p-4 flex-1 flex flex-col justify-between">
@@ -4946,6 +5064,54 @@ const AdminDashboard = ({ onToast, adminRole, user }: { onToast: (t: string, m: 
                  )}
               </div>
             )}
+
+            {activeTab === 'settings' && (
+              <div className="space-y-8">
+                <SectionHeader 
+                  tag="System Configuration" 
+                  title="Global" 
+                  goldSpan="Settings" 
+                  sub="Manage the organization's public identity channels and social links."
+                  className="!text-left !items-start"
+                />
+
+                <div className="max-w-2xl bg-neutral-900 border border-gold/15 p-8 md:p-12 space-y-8">
+                   <div className="space-y-6">
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black text-neutral-500 uppercase tracking-widest flex items-center gap-2">
+                          <Youtube size={14} className="text-red-500" /> YouTube Channel Link
+                        </label>
+                        <input 
+                          value={socialLinksForm.youtube}
+                          onChange={(e) => setSocialLinksForm({...socialLinksForm, youtube: e.target.value})}
+                          placeholder="https://youtube.com/@..."
+                          className="w-full bg-black/40 border border-white/10 p-4 text-sm text-white focus:border-gold outline-none h-14 font-mono"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black text-neutral-500 uppercase tracking-widest flex items-center gap-2">
+                          <Instagram size={14} className="text-pink-500" /> Instagram Profile Link
+                        </label>
+                        <input 
+                          value={socialLinksForm.instagram}
+                          onChange={(e) => setSocialLinksForm({...socialLinksForm, instagram: e.target.value})}
+                          placeholder="https://instagram.com/..."
+                          className="w-full bg-black/40 border border-white/10 p-4 text-sm text-white focus:border-gold outline-none h-14 font-mono"
+                        />
+                      </div>
+                   </div>
+
+                   <button 
+                     disabled={isSavingSettings}
+                     onClick={saveSettings}
+                     className="w-full bg-gold text-black py-4 font-black uppercase text-xs tracking-[0.2em] hover:bg-white transition-all disabled:opacity-50"
+                   >
+                     {isSavingSettings ? 'Synchronizing Intelligence...' : 'Update Global Social Links'}
+                   </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -5045,8 +5211,12 @@ const RankingPage = () => {
                  <div>
                     <div className="font-bebas text-xl text-white tracking-widest flex items-center gap-2">
                       {player.ign}
-                      {player.status === 'Inactive' && (
-                        <span className="text-[7px] bg-red-900/50 text-red-400 px-1.5 py-0.5 border border-red-500/20">MIA</span>
+                      {player.status && player.status !== 'Active' && (
+                        <span className={`text-[7px] px-1.5 py-0.5 border font-black uppercase tracking-tighter ${
+                          player.status === 'On Trial' ? 'bg-blue-900/50 text-blue-400 border-blue-500/20' : 'bg-red-900/50 text-red-400 border-red-500/20'
+                        }`}>
+                          {player.status === 'Inactive' ? 'MIA' : player.status}
+                        </span>
                       )}
                     </div>
                     <div className="text-[10px] text-neutral-500 font-bold uppercase tracking-tighter">{player.role}</div>
@@ -5675,18 +5845,20 @@ export default function App() {
             
             <div className="flex gap-4">
               {[
-                { icon: <Instagram size={18}/>, label: 'Instagram' },
-                { icon: <Youtube size={18}/>, label: 'YouTube' },
-                { icon: <MessageSquare size={18}/>, label: 'Discord' },
-                { icon: <Smartphone size={18}/>, label: 'WhatsApp' },
+                { icon: <Instagram size={18}/>, label: 'Instagram', url: 'https://www.instagram.com/bts__esports' },
+                { icon: <Youtube size={18}/>, label: 'YouTube', url: 'https://youtube.com/@btsesportsofficial' },
+                { icon: <MessageSquare size={18}/>, label: 'Discord', url: 'https://discord.gg/btsesports' },
+                { icon: <Smartphone size={18}/>, label: 'WhatsApp', url: '#' },
               ].map((social, i) => (
-                <button 
+                <a 
                   key={i}
-                  onClick={() => showToast(social.label, `Following ${social.label} redirects are enabled in production!`)}
+                  href={social.url}
+                  target="_blank"
+                  rel="noreferrer"
                   className="w-10 h-10 border border-white/10 flex items-center justify-center text-neutral-500 hover:border-gold hover:text-gold transition-all duration-300 transform hover:-translate-y-1"
                 >
                   {social.icon}
-                </button>
+                </a>
               ))}
             </div>
           </div>

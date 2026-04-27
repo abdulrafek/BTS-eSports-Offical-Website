@@ -5773,7 +5773,7 @@ export default function App() {
     
     // Standard User Restriction (logged in but only 'User' role)
     if (user && !isAdmin && userRole === 'User') {
-      base = full.filter(link => ['home', 'tournament', 'recruitment', 'about'].includes(link.id));
+      base = full.filter(link => ['home', 'tournament', 'results', 'ranking', 'roster', 'recruitment', 'management', 'about'].includes(link.id));
     }
 
     if (isAdmin) {
@@ -5784,7 +5784,7 @@ export default function App() {
 
   useEffect(() => {
     if (user && !isAdmin && userRole === 'User') {
-      const allowed = ['home', 'tournament', 'recruitment', 'about', 'registration', 'signin'];
+      const allowed = ['home', 'tournament', 'results', 'ranking', 'roster', 'recruitment', 'management', 'about', 'registration', 'signin'];
       if (!allowed.includes(currentPage)) {
         setCurrentPage('home');
       }

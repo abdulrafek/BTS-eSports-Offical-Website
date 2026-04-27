@@ -41,7 +41,8 @@ import {
   Eye,
   Play,
   ExternalLink,
-  Lock
+  Lock,
+  Loader2
 } from 'lucide-react';
 import { Page, Tournament, Player, RankingPlayer } from './types';
 import { PLAYERS, DIVISIONS, TOURNAMENTS } from './constants';
@@ -160,7 +161,7 @@ const SectionHeader = ({ tag, title, sub, goldSpan, className = "text-center mb-
 
 // --- Pages ---
 
-const Home = ({ onNavigate, onToast }: { onNavigate: (p: Page) => void, onToast: (t: string, m: string) => void }) => {
+const Home = ({ onNavigate, onToast, userRole, isAdmin, user }: { onNavigate: (p: Page) => void, onToast: (t: string, m: string) => void, userRole?: string, isAdmin?: boolean, user?: User | null }) => {
   const [dbTournaments, setDbTournaments] = useState<any[]>([]);
   const [dbHighlights, setDbHighlights] = useState<any[]>([]);
   const [liveConfig, setLiveConfig] = useState<{ isLive: boolean, videoId: string, title: string } | null>(null);
@@ -175,50 +176,57 @@ const Home = ({ onNavigate, onToast }: { onNavigate: (p: Page) => void, onToast:
       if (doc.exists()) {
         setLiveConfig(doc.data() as any);
       }
+    }, (error) => {
+      console.error("Live Config Error:", error);
+      firebaseErrorHandler(error, 'get', 'site_config/youtube_live');
     });
 
     return () => unsubLive();
   }, []);
 
-  const heroSlides = [
-    {
-      tag: "🔥 India's Premier eSports Organization",
-      title: ["Rise.", "Dominate.", "Conquer."],
-      desc: "BTS eSports is building the next generation of competitive gaming talent in India. Join us and compete at the highest level.",
-      btn1: "Join Now",
-      btn2: "Tournaments",
-      nav1: "recruitment",
-      nav2: "tournament",
-      accent: "gold"
-    },
-    {
-      tag: "🏆 Champion Mindset",
-      title: ["Train.", "Win.", "Repeat."],
-      desc: "Our elite divisions are constantly scouting for the best talent in the region. Are you ready for the big leagues?",
-      btn1: "View Roster",
-      btn2: "Leaderboard",
-      nav1: "roster",
-      nav2: "ranking",
-      accent: "neon-red"
-    },
-    {
-      tag: "🎮 Tactical Dominance",
-      title: ["Aim.", "Shoot.", "Succeed."],
-      desc: "From BGMI to Valorant, we are expanding our tactical footprint across all major competitive titles.",
-      btn1: "Latest Results",
-      btn2: "Recruitment",
-      nav1: "results",
-      nav2: "recruitment",
-      accent: "blue-500"
-    }
-  ];
+  const heroSlides = useMemo(() => {
+    const isStandard = user && !isAdmin && userRole === 'User';
+
+    return [
+      {
+        tag: "🔥 India's Premier eSports Organization",
+        title: ["Rise.", "Dominate.", "Conquer."],
+        desc: "BTS eSports is building the next generation of competitive gaming talent in India. Join us and compete at the highest level.",
+        btn1: "Join Now",
+        btn2: "Tournaments",
+        nav1: "recruitment",
+        nav2: "tournament",
+        accent: "gold"
+      },
+      {
+        tag: "🏆 Champion Mindset",
+        title: ["Train.", "Win.", "Repeat."],
+        desc: "Our elite divisions are constantly scouting for the best talent in the region. Are you ready for the big leagues?",
+        btn1: isStandard ? "Apply Now" : "View Roster",
+        btn2: isStandard ? "Latest Events" : "Leaderboard",
+        nav1: isStandard ? "recruitment" : "roster",
+        nav2: isStandard ? "tournament" : "ranking",
+        accent: "neon-red"
+      },
+      {
+        tag: "🎮 Tactical Dominance",
+        title: ["Aim.", "Shoot.", "Succeed."],
+        desc: "From BGMI to Valorant, we are expanding our tactical footprint across all major competitive titles.",
+        btn1: isStandard ? "Join Squad" : "Latest Results",
+        btn2: "Recruitment",
+        nav1: isStandard ? "recruitment" : "results",
+        nav2: "recruitment",
+        accent: "blue-500"
+      }
+    ];
+  }, [user, isAdmin, userRole]);
 
   useEffect(() => {
     const timer = setInterval(() => {
       setCurrentSlide((prev) => (prev + 1) % heroSlides.length);
     }, 5000);
     return () => clearInterval(timer);
-  }, []);
+  }, [heroSlides]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -238,6 +246,7 @@ const Home = ({ onNavigate, onToast }: { onNavigate: (p: Page) => void, onToast:
         }
       } catch (error) {
         console.error("Error fetching home data:", error);
+        reportFirestoreError(error, 'list', 'home_data', onToast);
       } finally {
         setLoading(false);
       }
@@ -854,7 +863,7 @@ const RosterPage = ({ onToast }: { onToast: (t: string, m: string) => void }) =>
           getDocs(qPlayers),
           getDocs(qDivs),
           getDocs(qAchs),
-          getDoc(doc(db, 'settings', 'social'))
+          getDoc(doc(db, 'site_config', 'social'))
         ]);
         
         setDbPlayers(playersSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
@@ -1778,24 +1787,37 @@ const SignInPage = ({ onToast, user, isAdmin, onNavigate }: { onToast: (t: strin
       const result = await signInWithPopup(auth, googleProvider);
       const user = result.user;
       
-      // Check if user document already exists to preserve system ID
+      // Check if user document already exists
       const userDoc = await getDoc(doc(db, 'users', user.uid));
       
       const systemId = userDoc.exists() && userDoc.data().systemId 
         ? userDoc.data().systemId 
         : `BTS-OP-${Math.floor(1000 + Math.random() * 9000)}`;
 
+      const existingData = userDoc.exists() ? userDoc.data() : null;
+      const initialRole = existingData?.role || 'User';
+      const initialCreatedAt = existingData?.createdAt || serverTimestamp();
+
       await setDoc(doc(db, 'users', user.uid), {
         uid: user.uid,
         email: user.email,
-        ign: user.displayName || 'Guest',
+        ign: existingData?.ign || (user.displayName || 'Operative'),
         systemId: systemId,
-        updatedAt: serverTimestamp()
+        role: initialRole,
+        updatedAt: serverTimestamp(),
+        createdAt: initialCreatedAt
       }, { merge: true });
 
-      onToast('Login Success', `Welcome back, ${user.displayName}!`);
+      onToast('Login Success', `Welcome back, ${user.displayName || 'Operative'}!`);
     } catch (error: any) {
-      onToast('Login Error', error.message || 'Failed to sign in with Google');
+      console.error("Google Login Error:", error);
+      if (error.code === 'auth/popup-blocked') {
+        onToast('Popup Blocked', 'Please enable popups for this site to sign in with Google.');
+      } else if (error.code === 'auth/cancelled-popup-request') {
+        // Ignore user cancellation
+      } else {
+        onToast('Login Error', error.message || 'Failed to sign in with Google');
+      }
     }
   };
 
@@ -2887,16 +2909,56 @@ const AdminDashboard = ({ onToast, adminRole, user }: { onToast: (t: string, m: 
     }
   };
 
+  const [actingUserId, setActingUserId] = useState<string | null>(null);
+
+  const demoteFromSquad = async (user: any) => {
+    try {
+      setActingUserId(user.id);
+      if (!confirm(`Are you sure you want to remove ${user.ign || 'this user'} from the Professional Roster? This will delete their squad profile but keep their user account.`)) {
+        setActingUserId(null);
+        return;
+      }
+
+      const q = query(collection(db, 'squad'), where('uid', '==', user.uid));
+      const snap = await getDocs(q);
+      
+      const batch = writeBatch(db);
+      snap.docs.forEach(docSnap => {
+        batch.delete(docSnap.ref);
+      });
+
+      batch.update(doc(db, 'users', user.id), { 
+        role: 'User', 
+        updatedAt: serverTimestamp() 
+      });
+
+      await batch.commit();
+      
+      onToast('Tactical Demotion', `${user.ign} has been returned to standard User status.`);
+      fetchData();
+    } catch (error) {
+      console.error("Demotion Error:", error);
+      reportFirestoreError(error, 'delete', 'squad', onToast);
+    } finally {
+      setActingUserId(null);
+    }
+  };
+
   const promoteToSquadFromUser = async (user: any) => {
     try {
+      setActingUserId(user.id);
       const q = query(collection(db, 'squad'), where('uid', '==', user.uid), limit(1));
       const snap = await getDocs(q);
       if (!snap.empty) {
         onToast('Redundant', 'This user is already a professional member.');
+        setActingUserId(null);
         return;
       }
 
-      await addDoc(collection(db, 'squad'), {
+      const squadRef = doc(collection(db, 'squad'));
+      const batch = writeBatch(db);
+
+      batch.set(squadRef, {
         uid: user.uid,
         ign: user.ign || 'New Operative',
         role: 'Assaulter',
@@ -2916,11 +2978,19 @@ const AdminDashboard = ({ onToast, adminRole, user }: { onToast: (t: string, m: 
         updatedAt: serverTimestamp()
       });
 
-      await updateDoc(doc(db, 'users', user.id), { role: 'Squad Member', updatedAt: serverTimestamp() });
+      batch.update(doc(db, 'users', user.id), { 
+        role: 'Squad Member', 
+        updatedAt: serverTimestamp() 
+      });
+
+      await batch.commit();
       onToast('Tactical Promotion', `${user.ign} has been inducted into the Squad.`);
       fetchData();
     } catch (error) {
+      console.error("Promotion Error:", error);
       reportFirestoreError(error, 'create', 'squad', onToast);
+    } finally {
+      setActingUserId(null);
     }
   };
 
@@ -3978,7 +4048,19 @@ const AdminDashboard = ({ onToast, adminRole, user }: { onToast: (t: string, m: 
 
                         <div>
                           <h5 className="font-bebas text-3xl text-white tracking-widest leading-none">{u.ign || 'Anonymous'}</h5>
-                          <p className="text-[10px] text-neutral-500 font-bold uppercase tracking-widest mt-1 truncate">{u.email}</p>
+                          <div className="flex items-center justify-between mt-1 pt-1 border-t border-white/5">
+                            <p className="text-[10px] text-neutral-500 font-bold uppercase tracking-widest truncate">{u.email}</p>
+                            <button 
+                              onClick={() => {
+                                navigator.clipboard.writeText(u.email);
+                                onToast('Tactical Data', 'Email intelligence copied to clipboard.');
+                              }}
+                              className="text-neutral-600 hover:text-gold transition-colors p-1"
+                              title="Copy Email ID"
+                            >
+                              <Copy size={12} />
+                            </button>
+                          </div>
                         </div>
 
                         <div className="grid grid-cols-2 gap-2 text-[8px] font-black uppercase tracking-widest">
@@ -3993,23 +4075,43 @@ const AdminDashboard = ({ onToast, adminRole, user }: { onToast: (t: string, m: 
                         </div>
                       </div>
 
-                      <div className="mt-6 pt-6 border-t border-white/5 flex gap-2">
-                         {u.role !== 'Squad Member' && u.role !== 'Admin' && (
-                           <button 
-                             onClick={() => promoteToSquadFromUser(u)}
-                             className="flex-1 bg-white/5 text-neutral-400 border border-white/10 py-3 text-[9px] font-black uppercase tracking-widest hover:text-gold hover:border-gold/30 transition-all flex items-center justify-center gap-2"
-                           >
-                              <Plus size={14} /> Promote to Squad
-                           </button>
-                         )}
-                         {u.role === 'Squad Member' && (
-                            <div className="flex-1 bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 py-3 text-[9px] font-black uppercase tracking-widest text-center">
-                               Professional Roster
+                      <div className="mt-6 pt-6 border-t border-white/5 space-y-3">
+                         <div className="flex flex-col gap-2">
+                            <div className="text-[9px] font-black uppercase tracking-widest text-neutral-600 mb-1 px-1 flex items-center justify-between">
+                               Select Clearance Profile
+                               {actingUserId === u.id && <Loader2 size={10} className="animate-spin text-gold" />}
                             </div>
-                         )}
-                         <button className="p-3 border border-white/10 text-neutral-600 hover:text-red-500 transition-colors">
-                            <Ban size={14} />
-                         </button>
+                            <div className="grid grid-cols-2 gap-2 bg-white/5 p-1 border border-white/10">
+                               <button 
+                                 onClick={() => u.role !== 'User' && demoteFromSquad(u)}
+                                 disabled={u.role === 'User' || actingUserId === u.id}
+                                 className={`py-3 text-[9px] font-black uppercase tracking-widest transition-all ${
+                                   u.role === 'User' 
+                                    ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30' 
+                                    : 'bg-neutral-800 text-neutral-500 hover:bg-neutral-700 hover:text-white border border-transparent'
+                                 } disabled:cursor-default`}
+                               >
+                                  Standard User
+                               </button>
+                               <button 
+                                 onClick={() => u.role !== 'Squad Member' && promoteToSquadFromUser(u)}
+                                 disabled={u.role === 'Squad Member' || actingUserId === u.id}
+                                 className={`py-3 text-[9px] font-black uppercase tracking-widest transition-all ${
+                                   u.role === 'Squad Member' 
+                                    ? 'bg-emerald-600/20 text-emerald-400 border border-emerald-500/30' 
+                                    : 'bg-neutral-800 text-neutral-500 hover:bg-neutral-700 hover:text-white border border-transparent'
+                                 } disabled:cursor-default`}
+                               >
+                                  Squad Member
+                               </button>
+                            </div>
+                         </div>
+                         
+                         <div className="flex gap-2">
+                           <button className="flex-1 py-3 border border-white/10 text-neutral-600 text-[9px] font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-red-500/10 hover:text-red-500 transition-all">
+                              <Ban size={14} /> Full Ban Status
+                           </button>
+                         </div>
                       </div>
                     </div>
                   ))}
@@ -5592,6 +5694,7 @@ export default function App() {
     window.scrollTo(0, 0);
   };
   const [user, setUser] = useState<User | null>(null);
+  const [userRole, setUserRole] = useState<string>('User');
   const [isAdmin, setIsAdmin] = useState(false);
   const [adminRole, setAdminRole] = useState<string | null>(null);
   const [toast, setToast] = useState<{ title: string, msg: string, visible: boolean }>({ title: '', msg: '', visible: false });
@@ -5611,6 +5714,14 @@ export default function App() {
     if (user) {
       const checkAdmin = async () => {
         try {
+          // Fetch user role from users collection
+          const userDoc = await getDoc(doc(db, 'users', user.uid));
+          if (userDoc.exists()) {
+            setUserRole(userDoc.data().role || 'User');
+          } else {
+            setUserRole('User');
+          }
+
           const adminDoc = await getDoc(doc(db, 'admins', user.uid));
           if (adminDoc.exists()) {
             setIsAdmin(true);
@@ -5637,6 +5748,7 @@ export default function App() {
     } else {
       setIsAdmin(false);
       setAdminRole(null);
+      setUserRole('User');
     }
   }, [user]);
 
@@ -5646,7 +5758,7 @@ export default function App() {
   };
 
   const navLinks = useMemo(() => {
-    const base = [
+    const full = [
       { id: 'home', label: 'Home' },
       { id: 'tournament', label: 'Events' },
       { id: 'results', label: 'Results' },
@@ -5656,11 +5768,28 @@ export default function App() {
       { id: 'management', label: 'Org' },
       { id: 'about', label: 'Info' },
     ];
+
+    let base = full;
+    
+    // Standard User Restriction (logged in but only 'User' role)
+    if (user && !isAdmin && userRole === 'User') {
+      base = full.filter(link => ['home', 'tournament', 'recruitment', 'about'].includes(link.id));
+    }
+
     if (isAdmin) {
       base.push({ id: 'admin', label: 'Deployment Portal' } as any);
     }
     return base;
-  }, [isAdmin]);
+  }, [isAdmin, userRole, user]);
+
+  useEffect(() => {
+    if (user && !isAdmin && userRole === 'User') {
+      const allowed = ['home', 'tournament', 'recruitment', 'about', 'registration', 'signin'];
+      if (!allowed.includes(currentPage)) {
+        setCurrentPage('home');
+      }
+    }
+  }, [currentPage, user, isAdmin, userRole]);
 
   return (
     <div className="min-h-screen bg-dark-bg font-sans selection:bg-gold selection:text-black scroll-smooth">
@@ -5768,7 +5897,7 @@ export default function App() {
             exit={{ opacity: 0, x: -10 }}
             transition={{ duration: 0.3 }}
           >
-            {currentPage === 'home' && <Home onNavigate={navigate} onToast={showToast} />}
+            {currentPage === 'home' && <Home onNavigate={navigate} onToast={showToast} userRole={userRole} isAdmin={isAdmin} user={user} />}
             {currentPage === 'tournament' && (
               <TournamentPage onToast={showToast} user={user} onNavigate={navigate} />
             )}

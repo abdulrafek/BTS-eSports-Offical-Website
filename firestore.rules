@@ -25,13 +25,12 @@ service cloud.firestore {
     }
 
     function hasAdminRole(role) {
-      let adminPath = /databases/$(database)/documents/admins/$(request.auth.uid);
-      let adminDoc = exists(adminPath) ? get(adminPath) : null;
-      let currentRole = adminDoc != null ? adminDoc.data.role : null;
       return isSignedIn() && (
         request.auth.token.email == "argaming2020119@gmail.com" || 
-        currentRole == "Super Admin" || 
-        currentRole == role
+        (exists(/databases/$(database)/documents/admins/$(request.auth.uid)) && (
+          get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.role == "Super Admin" ||
+          get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.role == role
+        ))
       );
     }
 
@@ -51,7 +50,8 @@ service cloud.firestore {
              (data.get('role', 'User') is string) &&
              (data.get('division', '') is string) &&
              (data.get('teamId', '') is string) &&
-             (data.get('teamName', '') is string);
+             (data.get('teamName', '') is string) &&
+             (data.get('updatedAt', request.time) == request.time);
     }
 
     function isValidApplication(data) {
@@ -139,8 +139,12 @@ service cloud.firestore {
       allow list: if isHeadScout() || isTournamentManager();
       allow create: if isSignedIn() && isOwner(userId) && isValidId(userId) && isValidUser(incoming());
       allow update: if (isSignedIn() && isOwner(userId) && isValidUser(incoming()) &&
-                    incoming().diff(existing()).affectedKeys().hasOnly(['ign', 'role', 'division', 'kd', 'matches', 'updatedAt', 'teamId', 'teamName', 'systemId']) &&
-                    (incoming().get('updatedAt', request.time) == request.time)) || isHeadScout() || isTournamentManager();
+                    incoming().diff(existing()).affectedKeys().hasOnly(['ign', 'role', 'division', 'kd', 'matches', 'updatedAt', 'teamId', 'teamName', 'systemId', 'email', 'uid', 'createdAt']) &&
+                    (incoming().get('updatedAt', request.time) == request.time) &&
+                    (incoming().uid == existing().uid) &&
+                    (incoming().email == existing().email) &&
+                    (!existing().keys().hasAll(['createdAt']) || incoming().createdAt == existing().createdAt)
+                    ) || isHeadScout() || isTournamentManager() || isSuperAdmin();
     }
 
     match /squad/{memberId} {
@@ -195,7 +199,10 @@ service cloud.firestore {
     }
 
     match /{path=**}/registrations/{regId} {
-      allow list: if isSignedIn() && (resource.data.uid == request.auth.uid || isTournamentManager());
+      allow list: if isSignedIn() && (
+        resource.data.uid == request.auth.uid || 
+        request.auth.token.email == "argaming2020119@gmail.com"
+      );
     }
 
     match /results/{resultId} {
@@ -254,6 +261,10 @@ service cloud.firestore {
       allow read: if isSignedIn();
       allow list: if isSuperAdmin();
       allow write: if isSuperAdmin(); 
+    }
+
+    match /test/connection {
+      allow read: if true;
     }
 
     match /site_config/{configId} {

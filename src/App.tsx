@@ -25,6 +25,7 @@ import {
   Award,
   Globe,
   Download,
+  FileSpreadsheet,
   Calendar,
   IndianRupee,
   Briefcase,
@@ -32,12 +33,14 @@ import {
   Copy,
   LogOut,
   Plus,
+  AlertCircle,
   Search,
   Shield,
   ShieldAlert,
   Check,
   Ban,
   Trash2,
+  Zap,
   Eye,
   Play,
   ExternalLink,
@@ -45,7 +48,7 @@ import {
   Loader2
 } from 'lucide-react';
 import { Page, Tournament, Player, RankingPlayer } from './types';
-import { PLAYERS, DIVISIONS, TOURNAMENTS } from './constants';
+import { PLAYERS, DIVISIONS, TOURNAMENTS, GAME_DATA } from './constants';
 import { auth, googleProvider, db, handleFirestoreError as firebaseErrorHandler } from './lib/firebase';
 import { signInWithPopup, signOut, onAuthStateChanged, User, signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
 import { 
@@ -211,7 +214,7 @@ const Home = ({ onNavigate, onToast, userRole, isAdmin, user }: { onNavigate: (p
       {
         tag: "🎮 Tactical Dominance",
         title: ["Aim.", "Shoot.", "Succeed."],
-        desc: "From BGMI to Valorant, we are expanding our tactical footprint across all major competitive titles.",
+        desc: "From BGMI and PUBG to Valorant and CODM, we are expanding our tactical footprint across all major competitive titles.",
         btn1: isStandard ? "Join Squad" : "Latest Results",
         btn2: "Recruitment",
         nav1: isStandard ? "recruitment" : "results",
@@ -397,7 +400,7 @@ const Home = ({ onNavigate, onToast, userRole, isAdmin, user }: { onNavigate: (p
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ duration: 0.8, delay: 0.2 }}
-              className="grid grid-cols-2 gap-4"
+              className="grid grid-cols-2 sm:grid-cols-4 gap-4"
             >
               {[
                 { num: '40+', label: 'Active Players', glow: true },
@@ -432,45 +435,97 @@ const Home = ({ onNavigate, onToast, userRole, isAdmin, user }: { onNavigate: (p
       </section>
 
       {/* Games Section */}
-      <section className="py-24 bg-gold-[0.02] border-y border-gold/5 px-4 overflow-hidden">
-        <div className="container mx-auto">
+      <section className="py-24 bg-gold-[0.02] border-y border-gold/5 px-4 overflow-hidden relative">
+        <div className="container mx-auto relative z-10">
           <SectionHeader tag="Multi-Game Ecosystem" title="Strategic" goldSpan="Expansion" sub="We are not just a one-game org. BTS is diversifying across multiple competitive architectures to dominate the Indian eSports scene." />
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {[
-              { icon: <Gamepad2 className="text-gold" size={48} />, name: 'BGMI', desc: 'Mobile Battle Royale Excellence', status: 'Active', players: 24 },
-              { icon: <Target className="text-blue-400" size={48} />, name: 'Valorant', desc: 'Tactical Team-Based Shooter', status: 'Expanding', players: 10 },
-              { icon: <Flame className="text-orange-500" size={48} />, name: 'Free Fire', desc: 'Fast-Paced Mobile Survival', status: 'Active', players: 12 },
-              { icon: <Smartphone className="text-purple-500" size={48} />, name: 'Wild Rift', desc: 'Mobile MOBA Strategy', status: 'Soon', players: 0 },
-            ].map((game, i) => (
-              <motion.div
-                key={i}
-                whileHover={{ y: -5, borderColor: 'rgba(212,175,55,0.4)' }}
-                className="bg-neutral-900 border border-white/5 p-8 relative group overflow-hidden"
-                onClick={() => game.status !== 'Soon' && onNavigate('tournament')}
-              >
-                <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-                   {game.icon}
-                </div>
-                <div className="mb-6">{game.icon}</div>
-                <h3 className="font-bebas text-3xl text-white tracking-widest mb-2 group-hover:text-gold transition-colors">{game.name}</h3>
-                <p className="text-neutral-500 text-xs mb-6 font-medium leading-relaxed">{game.desc}</p>
-                <div className="flex justify-between items-center">
-                  <span className={`text-[9px] uppercase font-black tracking-widest px-3 py-1 border ${
-                    game.status === 'Active' ? 'bg-green-500/10 text-green-400 border-green-500/30' : 
-                    game.status === 'Expanding' ? 'bg-blue-500/10 text-blue-400 border-blue-500/30' :
-                    'bg-neutral-800 text-neutral-500 border-white/10'
-                  }`}>
-                    {game.status}
-                  </span>
-                  {game.players > 0 && (
-                    <div className="text-[10px] text-neutral-400 font-bold uppercase tracking-tighter">
-                      {game.players} OPERATIVES
+          
+          <div className="relative">
+            {/* Desktop View: Grid */}
+            <div className="hidden md:grid grid-cols-2 lg:grid-cols-5 gap-6">
+              {Object.keys(GAME_DATA).map((gameKey, i) => {
+                const icons: Record<string, { icon: React.ReactNode, desc: string, status: string }> = {
+                  'BGMI': { icon: <Gamepad2 className="text-gold" size={48} />, desc: 'Mobile Battle Royale Excellence', status: 'Active' },
+                  'PUBG': { icon: <Gamepad2 className="text-gold" size={48} />, desc: 'Global Battle Royale Dominance', status: 'Active' },
+                  'Free Fire': { icon: <Flame className="text-orange-500" size={48} />, desc: 'Fast-Paced Mobile Survival', status: 'Active' },
+                  'Valorant': { icon: <Target className="text-blue-400" size={48} />, desc: 'Tactical Team-Based Shooter', status: 'Expanding' },
+                  'COD': { icon: <Smartphone className="text-purple-500" size={48} />, desc: 'Fast-Paced Tactical Warfare', status: 'Active' },
+                };
+                const game = icons[gameKey] || { icon: <Gamepad2 className="text-gold" size={48} />, desc: 'Competitive eSports Title', status: 'Active' };
+                return (
+                  <motion.div
+                    key={i}
+                    whileHover={{ y: -5, borderColor: 'rgba(212,175,55,0.4)' }}
+                    className="bg-neutral-900 border border-white/5 p-8 relative group overflow-hidden cursor-pointer h-full"
+                    onClick={() => onNavigate('tournament')}
+                  >
+                    <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                       {game.icon}
                     </div>
-                  )}
-                </div>
-                <div className="absolute bottom-0 left-0 w-full h-[2px] bg-gradient-to-r from-transparent via-gold to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                    <div className="mb-6">{game.icon}</div>
+                    <h3 className="font-bebas text-3xl text-white tracking-widest mb-2 group-hover:text-gold transition-colors">{gameKey}</h3>
+                    <p className="text-neutral-500 text-xs mb-6 font-medium leading-relaxed">{game.desc}</p>
+                    <div className="flex justify-between items-center">
+                      <span className={`text-[9px] uppercase font-black tracking-widest px-3 py-1 border ${
+                        game.status === 'Active' ? 'bg-green-500/10 text-green-400 border-green-500/30' : 
+                        game.status === 'Expanding' ? 'bg-blue-500/10 text-blue-400 border-blue-500/30' :
+                        'bg-neutral-800 text-neutral-500 border-white/10'
+                      }`}>
+                        {game.status}
+                      </span>
+                    </div>
+                    <div className="absolute bottom-0 left-0 w-full h-[2px] bg-gradient-to-r from-transparent via-gold to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </motion.div>
+                );
+              })}
+            </div>
+
+            {/* Mobile View: Auto-sliding Marquee */}
+            <div className="md:hidden overflow-hidden py-4">
+              <motion.div 
+                className="flex gap-4"
+                animate={{
+                  x: [0, -1000]
+                }}
+                transition={{
+                  x: {
+                    repeat: Infinity,
+                    repeatType: "loop",
+                    duration: 30,
+                    ease: "linear",
+                  },
+                }}
+                style={{ width: 'fit-content' }}
+              >
+                {[...Object.keys(GAME_DATA), ...Object.keys(GAME_DATA)].map((gameKey, i) => {
+                  const icons: Record<string, { icon: React.ReactNode, desc: string, status: string }> = {
+                    'BGMI': { icon: <Gamepad2 className="text-gold" size={48} />, desc: 'Mobile Battle Royale Excellence', status: 'Active' },
+                    'PUBG': { icon: <Gamepad2 className="text-gold" size={48} />, desc: 'Global Battle Royale Dominance', status: 'Active' },
+                    'Free Fire': { icon: <Flame className="text-orange-500" size={48} />, desc: 'Fast-Paced Mobile Survival', status: 'Active' },
+                    'Valorant': { icon: <Target className="text-blue-400" size={48} />, desc: 'Tactical Team-Based Shooter', status: 'Expanding' },
+                    'COD': { icon: <Smartphone className="text-purple-500" size={48} />, desc: 'Fast-Paced Tactical Warfare', status: 'Active' },
+                  };
+                  const game = icons[gameKey] || { icon: <Gamepad2 className="text-gold" size={48} />, desc: 'Competitive eSports Title', status: 'Active' };
+                  return (
+                    <div
+                      key={i}
+                      className="bg-neutral-900 border border-white/5 p-6 relative min-w-[240px] flex flex-col justify-between"
+                      onClick={() => onNavigate('tournament')}
+                    >
+                      <div className="mb-4">{game.icon}</div>
+                      <h3 className="font-bebas text-2xl text-white tracking-widest mb-1">{gameKey}</h3>
+                      <p className="text-neutral-500 text-[10px] mb-4 font-medium line-clamp-2">{game.desc}</p>
+                      <span className={`text-[8px] uppercase font-black tracking-widest px-2 py-0.5 border self-start ${
+                        game.status === 'Active' ? 'bg-green-500/10 text-green-400 border-green-500/30' : 
+                        game.status === 'Expanding' ? 'bg-blue-500/10 text-blue-400 border-blue-500/30' :
+                        'bg-neutral-800 text-neutral-500 border-white/10'
+                      }`}>
+                        {game.status}
+                      </span>
+                    </div>
+                  );
+                })}
               </motion.div>
-            ))}
+            </div>
           </div>
         </div>
       </section>
@@ -496,7 +551,7 @@ const Home = ({ onNavigate, onToast, userRole, isAdmin, user }: { onNavigate: (p
                   className="bg-white/5 border border-white/10 p-4 group hover:border-gold/30 transition-all cursor-pointer relative overflow-hidden"
                 >
                   <div className="flex justify-between items-start mb-2">
-                    <span className="text-[10px] font-bold text-gold uppercase tracking-tighter">{t.game}</span>
+                    <span className="text-[10px] font-bold text-gold uppercase tracking-tighter">{t.game} {t.map && <span className="opacity-50 ml-1">• {t.map}</span>}</span>
                     <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-[2px] ${
                       t.status === 'open' || t.status === 'Active' ? 'bg-green-500/20 text-green-400' : 'bg-blue-500/20 text-blue-400'
                     }`}>
@@ -523,7 +578,7 @@ const Home = ({ onNavigate, onToast, userRole, isAdmin, user }: { onNavigate: (p
           <div className="lg:col-span-2 space-y-8">
             <SectionHeader tag="Combat Archive" title="Tournament" goldSpan="Highlights" className="!text-left !items-start" />
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="hidden md:grid grid-cols-1 md:grid-cols-2 gap-6">
               {displayHighlights.map((h, i) => (
                 <motion.div
                   key={i}
@@ -554,6 +609,45 @@ const Home = ({ onNavigate, onToast, userRole, isAdmin, user }: { onNavigate: (p
                   </div>
                 </motion.div>
               ))}
+            </div>
+
+            {/* Mobile View: Auto-sliding Marquee */}
+            <div className="md:hidden overflow-hidden py-4 -mx-4 px-4">
+              <motion.div 
+                className="flex gap-4"
+                animate={{
+                  x: [0, -1200]
+                }}
+                transition={{
+                  x: {
+                    repeat: Infinity,
+                    repeatType: "loop",
+                    duration: 40,
+                    ease: "linear",
+                  },
+                }}
+                style={{ width: 'fit-content' }}
+              >
+                {[...displayHighlights, ...displayHighlights].map((h, i) => (
+                  <div key={i} className="min-w-[280px] group cursor-pointer">
+                    <div className="relative aspect-video overflow-hidden border border-white/10">
+                      <img 
+                        src={getSafeImageUrl(h.thumb)} 
+                        alt={h.title}
+                        className="w-full h-full object-cover opacity-80"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
+                      <div className="absolute top-2 left-2">
+                        <span className="bg-gold text-black text-[7px] font-black px-1.5 py-0.5 tracking-widest uppercase rounded-[1px]">{h.tag}</span>
+                      </div>
+                      <div className="absolute bottom-2 left-2 right-2">
+                        <h5 className="text-white font-bebas text-lg tracking-wider line-clamp-1">{h.title}</h5>
+                        <p className="text-neutral-500 text-[8px] font-bold uppercase tracking-widest">{h.date}</p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </motion.div>
             </div>
           </div>
         </div>
@@ -598,7 +692,7 @@ const TournamentCard = ({ tournament, onToast, user, onNavigate }: { tournament:
       >
         <div className="flex justify-between items-start relative z-10">
           <div>
-            <div className="text-[10px] font-bold text-gold tracking-widest uppercase mb-1 font-orbitron">{tournament.game}</div>
+            <div className="text-[10px] font-bold text-gold tracking-widest uppercase mb-1 font-orbitron">{tournament.game} {tournament.map && <span className="opacity-50 ml-1">• {tournament.map}</span>}</div>
             <h3 className="font-bebas text-2xl text-white tracking-wide">{tournament.name || 'Untitled Tournament'}</h3>
           </div>
           <div className="flex flex-col items-end gap-2">
@@ -728,7 +822,7 @@ const IntelUplink = ({ socialLinks }: { socialLinks?: { youtube?: string, instag
           </div>
         </a>
     </div>
-    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-2 mt-16 px-4">
+    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2 mt-16 px-4">
         {[1, 2, 3, 4, 5, 6].map(i => (
           <div key={i} className="aspect-video bg-neutral-900 border border-white/5 relative group overflow-hidden">
             <img 
@@ -927,7 +1021,7 @@ const RosterPage = ({ onToast }: { onToast: (t: string, m: string) => void }) =>
           >
             All Games
           </button>
-          {['BGMI', 'Free Fire', 'COD', 'Valorant'].map(game => (
+          {Object.keys(GAME_DATA).map(game => (
             <button
               key={game}
               onClick={() => setActiveGame(game)}
@@ -997,68 +1091,285 @@ const RosterPage = ({ onToast }: { onToast: (t: string, m: string) => void }) =>
                   <span className="ml-auto text-[10px] text-neutral-500 font-bold uppercase tracking-[0.2em]">{divPlayers.length} ACTIVE PLAYERS</span>
                 </div>
                 
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+                <div className="flex md:grid overflow-x-auto md:overflow-x-visible pb-4 md:pb-0 snap-x snap-mandatory md:snap-none no-scrollbar md:grid-cols-3 lg:grid-cols-5 gap-4 -mx-4 px-4 md:mx-0 md:px-0">
                   {divPlayers.map(p => (
                     <motion.div 
                       key={p.id}
+                      layout
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
                       whileHover={{ y: -5 }}
-                      onClick={() => setSelectedPlayer(p)}
-                      className="bg-neutral-900 border border-gold/10 p-6 text-center group relative overflow-hidden cursor-pointer"
+                      onClick={() => setSelectedPlayer(selectedPlayer?.id === p.id ? null : p)}
+                      className={`min-w-[280px] md:min-w-0 flex-shrink-0 md:flex-shrink-1 snap-center bg-neutral-900 border transition-all duration-300 ${
+                        selectedPlayer?.id === p.id ? 'border-gold p-8 md:col-span-2 lg:col-span-3 text-left ring-1 ring-gold/20' : 'border-gold/10 p-6 text-center'
+                      } group relative overflow-hidden cursor-pointer`}
                     >
                     <div className="absolute top-0 left-[-100%] w-full h-full bg-gradient-to-r from-transparent via-gold/5 to-transparent skew-x-12 group-hover:left-[100%] transition-all duration-500" />
                     {p.status && p.status !== 'Active' && (
-                      <div className={`absolute top-2 right-2 text-[8px] px-2 py-0.5 font-black uppercase tracking-widest ${
+                      <div className={`absolute top-2 right-2 text-[8px] px-2 py-0.5 font-black uppercase tracking-widest z-10 ${
                         p.status === 'On Trial' ? 'bg-blue-600/80 text-white' : 'bg-neutral-800 text-white/40'
                       }`}>
                         {p.status}
                       </div>
                     )}
-                    <div className={`w-16 h-16 rounded-full bg-gradient-to-br from-gold/30 to-neon-red/30 mx-auto mb-4 flex items-center justify-center font-orbitron font-black text-xl text-black border-2 border-gold/20 ${p.status === 'Inactive' ? 'grayscale opacity-50' : ''}`}>
-                      {p.ign.split('•')[1]?.charAt(0) || p.ign.charAt(0) || 'P'}
-                    </div>
-                    <div className={`font-orbitron font-bold text-white text-sm truncate mb-1 flex items-center justify-center gap-2 ${p.status === 'Inactive' ? 'text-neutral-500' : ''}`}>
-                      <span className="truncate">{p.ign}</span>
-                      {p.status && p.status !== 'Active' && (
-                        <span className={`flex-shrink-0 text-[7px] px-1 py-0.5 rounded-xs uppercase tracking-tighter font-black ${
-                          p.status === 'On Trial' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30' : 'bg-neutral-800 text-white/40 border border-white/5'
-                        }`}>
-                          {p.status}
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex flex-col gap-1 mb-2">
-                      <div className="text-[10px] font-bold text-gold uppercase tracking-tighter">{p.role}</div>
-                      {p.game && <div className="text-[8px] font-black text-white/40 uppercase tracking-widest">{p.game}</div>}
-                    </div>
-                      <div className="flex justify-center items-center gap-3 mb-4">
-                        <ShareMenu 
-                           title={`Meet ${p.ign} from the BTS eSports ${resolvedDivisions[p.div]?.name || 'Official'} division!`} 
-                           url={`${window.location.origin}/player/${(p.ign || '').toLowerCase().replace(/•/g, '-').replace(/ /g, '-')}`} 
-                          onToast={onToast} 
-                        />
-                        {p.instagram && (
-                          <a 
-                            href={formatSocialLink(p.instagram, 'instagram')} 
-                            target="_blank" 
-                            rel="noreferrer"
-                            onClick={(e) => e.stopPropagation()}
-                            className="p-2 text-neutral-500 hover:text-gold transition-colors"
-                          >
-                            <Instagram size={16} />
-                          </a>
+
+                    <div className={`${selectedPlayer?.id === p.id ? 'flex flex-col md:flex-row gap-8 items-start mb-8' : ''}`}>
+                      <div className={`${selectedPlayer?.id === p.id ? 'flex-shrink-0' : ''}`}>
+                        <div className={`rounded-full bg-gradient-to-br from-gold/30 to-neon-red/30 mb-4 flex items-center justify-center font-orbitron font-black text-black border-2 border-gold/20 transition-all ${
+                          selectedPlayer?.id === p.id ? 'w-24 h-24 text-3xl' : 'w-16 h-16 mx-auto text-xl'
+                        } ${p.status === 'Inactive' ? 'grayscale opacity-50' : ''}`}>
+                          {p.ign.split('•')[1]?.charAt(0) || p.ign.charAt(0) || 'P'}
+                        </div>
+                      </div>
+
+                      <div className={`${selectedPlayer?.id === p.id ? 'flex-1' : ''}`}>
+                        <div className={`font-orbitron font-bold text-white text-sm truncate mb-1 flex items-center gap-2 ${
+                          selectedPlayer?.id === p.id ? 'text-2xl mb-2' : 'justify-center'
+                        } ${p.status === 'Inactive' ? 'text-neutral-500' : ''}`}>
+                          <span className="truncate">{p.ign}</span>
+                          {p.status && p.status !== 'Active' && selectedPlayer?.id !== p.id && (
+                            <span className={`flex-shrink-0 text-[7px] px-1 py-0.5 rounded-xs uppercase tracking-tighter font-black ${
+                              p.status === 'On Trial' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30' : 'bg-neutral-800 text-white/40 border border-white/5'
+                            }`}>
+                              {p.status}
+                            </span>
+                          )}
+                        </div>
+                        <div className={`flex flex-col gap-1 mb-2 ${selectedPlayer?.id === p.id ? 'items-start' : 'items-center'}`}>
+                          <div className="text-[10px] font-bold text-gold uppercase tracking-tighter">{p.role}</div>
+                          {p.game && <div className="text-[8px] font-black text-white/40 uppercase tracking-widest">{p.game}</div>}
+                        </div>
+
+                        {selectedPlayer?.id === p.id && (
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 w-full mt-6">
+                            <div className="bg-white/5 p-3 rounded-[2px] border border-white/5">
+                              <div className="text-[7px] text-neutral-500 uppercase font-black mb-1">SCRIMS KILLS</div>
+                              <div className="text-xl font-bebas text-white tracking-widest">{p.scrimsKills || 0}</div>
+                            </div>
+                            <div className="bg-white/5 p-3 rounded-[2px] border border-white/5">
+                              <div className="text-[7px] text-neutral-500 uppercase font-black mb-1">TOURNEY KILLS</div>
+                              <div className="text-xl font-bebas text-white tracking-widest">{p.tourneyKills || 0}</div>
+                            </div>
+                            <div className="bg-gold/5 p-3 rounded-[2px] border border-gold/10">
+                              <div className="text-[7px] text-gold uppercase font-black mb-1">TOTAL KILLS</div>
+                              <div className="text-xl font-bebas text-gold tracking-widest">{(p.scrimsKills || 0) + (p.tourneyKills || 0)}</div>
+                            </div>
+                            <div className="bg-gold/5 p-3 rounded-[2px] border border-gold/10">
+                              <div className="text-[7px] text-gold uppercase font-black mb-1">K/D RATIO</div>
+                              <div className="text-xl font-bebas text-gold tracking-widest">{p.kd || '0.00'}</div>
+                            </div>
+                          </div>
                         )}
                       </div>
-                      <div className="flex justify-center gap-6">
-                        <div className="text-center">
-                          <span className="block font-orbitron font-black text-gold leading-none">{p.kd}</span>
-                          <span className="text-[9px] text-neutral-500 uppercase font-black">K/D</span>
+                    </div>
+
+                    {selectedPlayer?.id === p.id ? (
+                      <motion.div 
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        className="space-y-8 mt-8 pt-8 border-t border-white/10"
+                      >
+                        {/* Performance Visualization */}
+                        <div className="space-y-4">
+                          <h4 className="font-bebas text-xl text-white tracking-widest flex items-center justify-between">
+                            <span>Performance Analytics</span>
+                            <TrendingUp size={14} className="text-gold/50" />
+                          </h4>
+                          <div className="bg-black/40 border border-white/5 p-6 rounded-sm h-[220px] relative overflow-hidden group">
+                            <div className="absolute top-0 right-0 p-2 opacity-10 group-hover:opacity-20 transition-opacity">
+                               <TrendingUp size={80} className="text-gold" />
+                            </div>
+                            <ResponsiveContainer width="100%" height="100%">
+                              <AreaChart data={(p.kdHistory || [1.2, 1.5, 1.4, 1.8, 2.1, 1.9, 2.2]).map((val, i) => ({ match: i + 1, kd: val }))}>
+                                <defs>
+                                  <linearGradient id={`kdGradient-${p.id}`} x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="5%" stopColor="#FFD700" stopOpacity={0.3}/>
+                                    <stop offset="95%" stopColor="#FFD700" stopOpacity={0}/>
+                                  </linearGradient>
+                                </defs>
+                                <XAxis hide dataKey="match" />
+                                <YAxis hide domain={['auto', 'auto']} />
+                                <Tooltip 
+                                  contentStyle={{ 
+                                    backgroundColor: '#0a0a0a', 
+                                    border: '1px solid rgba(255, 215, 0, 0.2)', 
+                                    fontSize: '9px', 
+                                    fontFamily: 'Orbitron',
+                                    color: '#fff',
+                                    borderRadius: '0px'
+                                  }}
+                                  labelStyle={{ display: 'none' }}
+                                  cursor={{ stroke: 'rgba(255, 215, 0, 0.2)', strokeWidth: 1 }}
+                                />
+                                <Area 
+                                  type="monotone" 
+                                  dataKey="kd" 
+                                  stroke="#FFD700" 
+                                  strokeWidth={2}
+                                  fillOpacity={1} 
+                                  fill={`url(#kdGradient-${p.id})`}
+                                  animationDuration={2500}
+                                />
+                              </AreaChart>
+                            </ResponsiveContainer>
+                            <div className="flex justify-between items-center mt-4 pt-4 border-t border-white/5">
+                               <div className="flex gap-4">
+                                  <div>
+                                     <div className="text-[7px] text-neutral-500 uppercase font-black">Performance Delta</div>
+                                     <div className="text-[10px] text-green-500 font-bold flex items-center gap-1">
+                                        <TrendingUp size={10} /> +12.5%
+                                     </div>
+                                  </div>
+                                  <div>
+                                     <div className="text-[7px] text-neutral-500 uppercase font-black">Stability Index</div>
+                                     <div className="text-[10px] text-blue-400 font-bold">HIGH</div>
+                                  </div>
+                               </div>
+                               <div className="text-right">
+                                  <div className="text-[7px] text-neutral-500 uppercase font-black">Current Data Peak</div>
+                                  <div className="text-sm font-bebas text-gold tracking-widest">{p.kd} K/D</div>
+                               </div>
+                            </div>
+                          </div>
                         </div>
-                        <div className="text-center">
-                          <span className="block font-orbitron font-black text-gold leading-none">{p.matches}</span>
-                          <span className="text-[9px] text-neutral-500 uppercase font-black">GP</span>
+
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                          {/* Map Intelligence */}
+                          <div className="space-y-4">
+                            <h4 className="font-bebas text-xl text-gold tracking-widest flex items-center justify-between">
+                              <span>Map Intelligence</span>
+                              <Target size={14} className="text-gold/50" />
+                            </h4>
+                            <div className="grid grid-cols-2 gap-3">
+                              {(GAME_DATA[p.game || 'BGMI']?.maps || ['Erangel', 'Miramar', 'Sanhok', 'Vikendi']).map(mapName => {
+                                const mapKey = `${mapName.toLowerCase()}Kills`;
+                                const displayKills = p[mapKey] || 0;
+                                return (
+                                  <div key={mapName} className="bg-white/5 border border-white/5 p-3 rounded-sm">
+                                    <div className="text-[9px] font-black text-neutral-400 uppercase tracking-widest mb-1">{mapName}</div>
+                                    <div className="text-xl font-bebas text-gold leading-none">{displayKills}</div>
+                                    <div className="text-[7px] text-neutral-600 uppercase font-black">ELIMINATIONS</div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+
+                            {/* Achievements */}
+                            <div className="pt-4">
+                              <div className="text-[9px] text-neutral-500 uppercase font-black mb-3 tracking-widest">Achievements</div>
+                              <div className="space-y-2">
+                                {(p.achievements && p.achievements.length > 0 ? p.achievements : ['Tournament MVP', 'Clutch Expert', 'Top Fragger']).map((ach: string, i: number) => (
+                                  <div key={i} className="flex items-center gap-3">
+                                    <div className="w-1.5 h-1.5 rotate-45 bg-gold/50" />
+                                    <span className="text-[9px] text-neutral-400 font-bold uppercase tracking-wider">{ach}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Mission Log */}
+                          <div className="space-y-4">
+                            <h4 className="font-bebas text-xl text-white tracking-widest">Recent Mission Log</h4>
+                            <div className="space-y-2 max-h-[250px] overflow-y-auto pr-2 custom-scrollbar">
+                              {(p.missionLog && p.missionLog.length > 0 ? p.missionLog : [
+                                { map: 'Erangel', result: 'WIN', kills: 7, rank: '#1', date: '2h ago' },
+                                { map: 'Miramar', result: 'LOSS', kills: 3, rank: '#12', date: '5h ago' }
+                              ]).map((match: any, i: number) => (
+                                <div key={i} className="flex items-center justify-between p-3 bg-white/5 border border-white/5">
+                                   <div className="flex items-center gap-3">
+                                      <div className={`w-1 h-6 ${match.result === 'WIN' || match.rank === '#1' ? 'bg-green-500' : 'bg-red-500'}`} />
+                                      <div>
+                                         <div className="text-[9px] font-black text-white uppercase">{match.map}</div>
+                                         <div className="text-[7px] text-neutral-600 uppercase font-bold">{match.date}</div>
+                                      </div>
+                                   </div>
+                                   <div className="flex gap-4 items-center">
+                                      <div className="text-right">
+                                         <div className="text-[9px] font-black text-gold uppercase">{match.kills}K</div>
+                                      </div>
+                                      <div className="text-right">
+                                         <div className="text-[9px] font-black text-white uppercase">{match.rank}</div>
+                                      </div>
+                                   </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
                         </div>
-                      </div>
+
+                        <div className="flex gap-3 mt-8">
+                           <button className="flex-1 bg-gold text-black py-3 text-[9px] font-black uppercase tracking-widest hover:bg-white transition-all">
+                              Challenge
+                           </button>
+                           <button onClick={(e) => { e.stopPropagation(); setSelectedPlayer(null); }} className="flex-1 border border-white/10 text-white py-3 text-[9px] font-black uppercase tracking-widest hover:border-gold transition-all">
+                              Collapse Intel
+                           </button>
+                        </div>
+                      </motion.div>
+                    ) : (
+                      <>
+                        <div className="flex justify-center items-center gap-2 mb-4">
+                          <ShareMenu 
+                             title={`Meet ${p.ign} from the BTS eSports ${resolvedDivisions[p.div]?.name || 'Official'} division!`} 
+                             url={`${window.location.origin}/player/${(p.ign || '').toLowerCase().replace(/•/g, '-').replace(/ /g, '-')}`} 
+                            onToast={onToast} 
+                          />
+                          {p.instagram && (
+                            <a 
+                              href={formatSocialLink(p.instagram, 'instagram')} 
+                              target="_blank" 
+                              rel="noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              className="w-8 h-8 rounded-full bg-white/5 border border-white/5 flex items-center justify-center text-neutral-500 hover:text-[#E4405F] hover:border-[#E4405F]/30 hover:bg-[#E4405F]/5 transition-all"
+                              title="Instagram"
+                            >
+                              <Instagram size={14} />
+                            </a>
+                          )}
+                          {p.youtube && (
+                            <a 
+                              href={formatSocialLink(p.youtube, 'youtube')} 
+                              target="_blank" 
+                              rel="noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              className="w-8 h-8 rounded-full bg-white/5 border border-white/5 flex items-center justify-center text-neutral-500 hover:text-[#FF0000] hover:border-[#FF0000]/30 hover:bg-[#FF0000]/5 transition-all"
+                              title="YouTube"
+                            >
+                              <Youtube size={14} />
+                            </a>
+                          )}
+                          {p.discord && (
+                            <a 
+                              href={formatSocialLink(p.discord, 'discord')} 
+                              target="_blank" 
+                              rel="noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              className="w-8 h-8 rounded-full bg-white/5 border border-white/5 flex items-center justify-center text-neutral-500 hover:text-[#5865F2] hover:border-[#5865F2]/30 hover:bg-[#5865F2]/5 transition-all"
+                              title="Discord"
+                            >
+                              <MessageSquare size={14} />
+                            </a>
+                          )}
+                        </div>
+                        <div className="mt-4 pt-4 border-t border-white/5 grid grid-cols-3 gap-2">
+                          <div className="bg-white/5 border border-white/5 p-2 rounded-sm text-center">
+                            <span className="block font-orbitron font-black text-gold text-sm leading-none mb-1">{p.kd}</span>
+                            <span className="text-[7px] text-neutral-500 uppercase font-bold tracking-widest">K/D</span>
+                          </div>
+                          <div className="bg-white/5 border border-white/5 p-2 rounded-sm text-center">
+                            <span className="block font-orbitron font-black text-gold text-sm leading-none mb-1">{p.matches}</span>
+                            <span className="text-[7px] text-neutral-500 uppercase font-bold tracking-widest">Matches</span>
+                          </div>
+                          <div className="bg-gold/10 border border-gold/20 p-2 rounded-sm text-center">
+                            <span className="block font-orbitron font-black text-gold text-sm leading-none mb-1">{(p.scrimsKills || 0) + (p.tourneyKills || 0)}</span>
+                            <span className="text-[7px] text-gold uppercase font-bold tracking-widest">Kills</span>
+                          </div>
+                        </div>
+                      </>
+                    )}
                     </motion.div>
+
                   ))}
                 </div>
               </motion.div>
@@ -1069,179 +1380,6 @@ const RosterPage = ({ onToast }: { onToast: (t: string, m: string) => void }) =>
 
       <IntelUplink socialLinks={socialLinks} />
       <SquadAchievementGallery achievements={dbAchievements} />
-
-      {/* Player Detail Modal */}
-      <AnimatePresence>
-        {selectedPlayer && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setSelectedPlayer(null)}
-              className="absolute inset-0 bg-black/90 backdrop-blur-md"
-            />
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.9, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              className="relative w-full max-w-4xl bg-neutral-950 border border-gold/20 shadow-[0_0_100px_rgba(255,215,0,0.1)] overflow-hidden"
-            >
-              <div className="grid grid-cols-1 lg:grid-cols-3">
-                {/* Profile Header Side */}
-                <div className="p-8 bg-neutral-900/50 border-r border-white/5 flex flex-col items-center text-center">
-                  <div className="w-32 h-32 rounded-full bg-gradient-to-br from-gold/40 to-neon-red/40 p-1 mb-6">
-                    <div className="w-full h-full rounded-full bg-black flex items-center justify-center font-bebas text-5xl text-gold border border-gold/20">
-                      {(selectedPlayer.ign || 'P').charAt(0)}
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-center gap-3 mb-1">
-                    <h2 className="font-bebas text-5xl text-white tracking-widest">{selectedPlayer.ign}</h2>
-                    {selectedPlayer.status && (
-                      <span className={`px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.2em] rounded-sm ${
-                        selectedPlayer.status === 'Active' ? 'bg-green-500/20 text-green-400 border border-green-500/30' :
-                        selectedPlayer.status === 'On Trial' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30' :
-                        'bg-neutral-800 text-white/40 border border-white/5'
-                      }`}>
-                        {selectedPlayer.status}
-                      </span>
-                    )}
-                  </div>
-                  <div className="text-[10px] font-black text-gold uppercase tracking-[0.3em] mb-8">{selectedPlayer.role}</div>
-                  
-                  <div className="grid grid-cols-2 gap-4 w-full mb-8">
-                    <div className="bg-white/5 p-4 rounded-[2px] border border-white/5">
-                      <div className="text-[8px] text-neutral-500 uppercase font-black mb-1">SCRIMS K/D</div>
-                      <div className="text-2xl font-bebas text-white tracking-widest">
-                        {selectedPlayer.scrimsMatches > 0 ? (selectedPlayer.scrimsKills / selectedPlayer.scrimsMatches).toFixed(2) : selectedPlayer.kd}
-                      </div>
-                    </div>
-                    <div className="bg-white/5 p-4 rounded-[2px] border border-white/5">
-                      <div className="text-[8px] text-neutral-500 uppercase font-black mb-1">TOURNEY K/D</div>
-                      <div className="text-2xl font-bebas text-white tracking-widest">
-                        {selectedPlayer.tourneyMatches > 0 ? (selectedPlayer.tourneyKills / selectedPlayer.tourneyMatches).toFixed(2) : selectedPlayer.kd}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="w-full space-y-4">
-                    <div className="flex justify-center gap-4 mb-6">
-                      {selectedPlayer.instagram && (
-                        <a href={formatSocialLink(selectedPlayer.instagram, 'instagram')} target="_blank" rel="noreferrer" className="w-10 h-10 rounded-full border border-white/10 flex items-center justify-center text-neutral-500 hover:border-gold hover:text-gold transition-all">
-                          <Instagram size={18} />
-                        </a>
-                      )}
-                      {selectedPlayer.youtube && (
-                        <a href={formatSocialLink(selectedPlayer.youtube, 'youtube')} target="_blank" rel="noreferrer" className="w-10 h-10 rounded-full border border-white/10 flex items-center justify-center text-neutral-500 hover:border-gold hover:text-gold transition-all">
-                          <Youtube size={18} />
-                        </a>
-                      )}
-                      {selectedPlayer.discord && (
-                        <a href={formatSocialLink(selectedPlayer.discord, 'discord')} target="_blank" rel="noreferrer" className="w-10 h-10 rounded-full border border-white/10 flex items-center justify-center text-neutral-500 hover:border-gold hover:text-gold transition-all">
-                          <MessageSquare size={18} />
-                        </a>
-                      )}
-                    </div>
-                    <div className="text-[9px] text-neutral-500 uppercase font-black text-left tracking-widest">Achievements</div>
-                    <div className="space-y-2">
-                       {(selectedPlayer.achievements && selectedPlayer.achievements.length > 0 ? selectedPlayer.achievements : ['Tournament MVP - S4', 'Highest Frags - BTS Cup', 'Pro League Finalist']).map((ach, i) => (
-                         <div key={i} className="flex items-center gap-3 text-left">
-                            <div className="w-1.5 h-1.5 rotate-45 bg-gold" />
-                            <span className="text-[10px] text-neutral-300 font-bold uppercase tracking-wider">{ach}</span>
-                         </div>
-                       ))}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Performance & History Side */}
-                <div className="lg:col-span-2 p-8 lg:p-12 space-y-8 overflow-y-auto max-h-[80vh] lg:max-h-none">
-                  <div className="flex justify-between items-start">
-                    <div className="space-y-1">
-                      <h3 className="font-bebas text-3xl text-white tracking-widest">Tactical Analysis</h3>
-                      <p className="text-[10px] text-neutral-500 uppercase font-bold tracking-widest">Simulated Performance Trends</p>
-                    </div>
-                    <button onClick={() => setSelectedPlayer(null)} className="text-neutral-500 hover:text-white transition-colors">
-                      <X size={24} />
-                    </button>
-                  </div>
-
-                  {/* Performance Trend Chart */}
-                  <div className="bg-black/40 border border-white/5 p-6 rounded-sm">
-                    <div className="h-40 w-full">
-                       <ResponsiveContainer width="100%" height="100%">
-                         <AreaChart data={(selectedPlayer.kdHistory || [0, 0, 0, 0, 0]).map((val, i) => ({ val, i }))}>
-                           <defs>
-                             <linearGradient id="colorKd" x1="0" y1="0" x2="0" y2="1">
-                               <stop offset="5%" stopColor="#FFD700" stopOpacity={0.3}/>
-                               <stop offset="95%" stopColor="#FFD700" stopOpacity={0}/>
-                             </linearGradient>
-                           </defs>
-                           <XAxis dataKey="i" hide />
-                           <YAxis hide domain={['dataMin - 1', 'dataMax + 1']} />
-                           <Tooltip 
-                             contentStyle={{ backgroundColor: '#111', border: '1px solid rgba(255,215,0,0.2)', fontSize: '10px', borderRadius: '2px' }}
-                             itemStyle={{ color: '#FFD700' }}
-                             labelStyle={{ display: 'none' }}
-                           />
-                           <Area type="monotone" dataKey="val" stroke="#FFD700" strokeWidth={2} fillOpacity={1} fill="url(#colorKd)" />
-                         </AreaChart>
-                       </ResponsiveContainer>
-                    </div>
-                    <div className="mt-4 flex justify-between text-[8px] text-neutral-600 font-black uppercase tracking-widest">
-                       <span>Performance history (Last 10 updates)</span>
-                       <span className="text-gold flex items-center gap-1">
-                         Current Form: {selectedPlayer.kdHistory && selectedPlayer.kdHistory.length > 1 && selectedPlayer.kdHistory[selectedPlayer.kdHistory.length-1] >= selectedPlayer.kdHistory[selectedPlayer.kdHistory.length-2] ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
-                       </span>
-                    </div>
-                  </div>
-
-                  <div className="space-y-6">
-                    <h4 className="font-bebas text-2xl text-white tracking-widest border-b border-white/5 pb-2">Mission Log</h4>
-                    <div className="space-y-3">
-                      {[
-                        { map: 'Erangel', result: 'WIN', kills: 7, rank: '#1', date: '2h ago' },
-                        { map: 'Miramar', result: 'LOSS', kills: 3, rank: '#12', date: '5h ago' },
-                        { map: 'Sanhok', result: 'WIN', kills: 12, rank: '#1', date: 'Yesterday' },
-                        { map: 'Vikendi', result: 'WIN', kills: 5, rank: '#3', date: 'Yesterday' },
-                      ].map((match, i) => (
-                        <div key={i} className="flex items-center justify-between p-4 bg-white/5 border border-white/5 hover:border-gold/20 transition-all group">
-                           <div className="flex items-center gap-4">
-                              <div className={`w-1 h-8 ${match.result === 'WIN' ? 'bg-green-500' : 'bg-red-500'}`} />
-                              <div>
-                                 <div className="text-[10px] font-black text-white uppercase tracking-widest">{match.map}</div>
-                                 <div className="text-[8px] text-neutral-500 uppercase font-bold">{match.date}</div>
-                              </div>
-                           </div>
-                           <div className="flex gap-8 text-right">
-                              <div>
-                                 <div className="text-[10px] font-black text-gold uppercase tracking-widest">{match.kills} KILLS</div>
-                                 <div className="text-[8px] text-neutral-500 uppercase font-bold tracking-widest">ELIMINATIONS</div>
-                              </div>
-                              <div>
-                                 <div className="text-[10px] font-black text-white uppercase tracking-widest">{match.rank}</div>
-                                 <div className="text-[8px] text-neutral-500 uppercase font-bold tracking-widest">PLACEMENT</div>
-                              </div>
-                           </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                  
-                  <div className="flex gap-4 pt-4">
-                    <button className="flex-1 bg-gold text-black py-4 text-[10px] font-black uppercase tracking-[0.2em] hover:bg-white transition-all">
-                       Challenge Operative
-                    </button>
-                    <button className="flex-1 border border-white/10 text-white py-4 text-[10px] font-black uppercase tracking-[0.2em] hover:border-gold transition-all">
-                       Full Statistics
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
     </div>
   );
 };
@@ -1254,9 +1392,13 @@ const RecruitmentPage = ({ onToast, user }: { onToast: (t: string, m: string) =>
   const [trackResult, setTrackResult] = useState<any[]>([]);
   const [formData, setFormData] = useState({
     fullName: '',
+    name: '',
     ign: '',
     uid: '',
     gameUid: '',
+    valorantId: '',
+    mainAgent: '',
+    device: '',
     age: '',
     whatsapp: '',
     location: '',
@@ -1307,26 +1449,41 @@ const RecruitmentPage = ({ onToast, user }: { onToast: (t: string, m: string) =>
       return;
     }
 
-    if (!formData.fullName || !formData.ign || !formData.gameUid) {
-      onToast('Missing Information', 'Please fill in all required fields.');
+    if (!formData.fullName || !formData.name || !formData.ign || !formData.gameUid) {
+      onToast('Missing Information', 'Please fill in all required fields (Real Name, Full Name, IGN, UID).');
       return;
     }
 
     setIsSubmitting(true);
     try {
-      await addDoc(collection(db, 'applications'), {
+      const applicationData = {
         ...formData,
         game: selectedGame,
         uid: user.uid,
         status: 'pending',
         createdAt: serverTimestamp()
-      });
+      };
+
+      // Sanitize fields based on game
+      if (selectedGame !== 'Valorant') {
+        delete (applicationData as any).valorantId;
+        delete (applicationData as any).mainAgent;
+      }
+      if (selectedGame !== 'BGMI' && selectedGame !== 'PUBG' && selectedGame !== 'Free Fire') {
+        delete (applicationData as any).device;
+      }
+
+      await addDoc(collection(db, 'applications'), applicationData);
       onToast('Application Success', 'Our scouts will contact you within 48 hours for trials.');
       setFormData({
         fullName: '',
+        name: '',
         ign: '',
         uid: '',
         gameUid: '',
+        valorantId: '',
+        mainAgent: '',
+        device: '',
         age: '',
         whatsapp: '',
         location: '',
@@ -1367,8 +1524,8 @@ const RecruitmentPage = ({ onToast, user }: { onToast: (t: string, m: string) =>
 
       {activeView === 'apply' ? (
         <>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-12">
-            {['BGMI', 'Free Fire', 'Valorant', 'COD: Mobile'].map((game) => (
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4 mb-12">
+            {Object.keys(GAME_DATA).map((game) => (
               <button
                 key={game}
                 onClick={() => setSelectedGame(game)}
@@ -1390,8 +1547,12 @@ const RecruitmentPage = ({ onToast, user }: { onToast: (t: string, m: string) =>
                   <div className="text-xs font-bold text-neon-red uppercase tracking-widest border-b border-neon-red/20 pb-2 mb-6">Personal details</div>
                   <div className="grid md:grid-cols-2 gap-6">
                     <div className="space-y-2">
-                      <label className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest">Full Name</label>
-                      <input name="fullName" value={formData.fullName} onChange={handleInputChange} type="text" placeholder="Real Name" className="w-full bg-white/5 border border-gold/15 p-3 font-sans focus:border-gold outline-none text-white" />
+                      <label className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest">Legal Name</label>
+                      <input name="name" value={formData.name} onChange={handleInputChange} type="text" placeholder="Your Real Name" className="w-full bg-white/5 border border-gold/15 p-3 font-sans focus:border-gold outline-none text-white" />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest">Full Name (Branded)</label>
+                      <input name="fullName" value={formData.fullName} onChange={handleInputChange} type="text" placeholder="e.g. BTS Player" className="w-full bg-white/5 border border-gold/15 p-3 font-sans focus:border-gold outline-none text-white" />
                     </div>
                     <div className="space-y-2">
                       <label className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest">In-Game Name</label>
@@ -1418,12 +1579,31 @@ const RecruitmentPage = ({ onToast, user }: { onToast: (t: string, m: string) =>
                     <div className="space-y-2">
                       <label className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest">Game Title</label>
                       <select name="game" value={selectedGame} onChange={(e) => setSelectedGame(e.target.value)} className="w-full bg-white/5 border border-gold/15 p-3 font-sans focus:border-gold outline-none text-white appearance-none">
-                        <option>BGMI</option>
-                        <option>Free Fire</option>
-                        <option>Valorant</option>
-                        <option>COD: Mobile</option>
+                        {Object.keys(GAME_DATA).map(gameKey => (
+                          <option key={gameKey} value={gameKey}>{gameKey}</option>
+                        ))}
                       </select>
                     </div>
+
+                    {selectedGame === 'Valorant' && (
+                      <>
+                        <div className="space-y-2">
+                          <label className="text-[10px] font-bold text-neon-red uppercase tracking-widest">Valorant ID</label>
+                          <input name="valorantId" value={formData.valorantId} onChange={handleInputChange} type="text" placeholder="Tag#1234" className="w-full bg-white/5 border border-neon-red/15 p-3 font-sans focus:border-neon-red outline-none text-white" />
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-[10px] font-bold text-neon-red uppercase tracking-widest">Main Agent</label>
+                          <input name="mainAgent" value={formData.mainAgent} onChange={handleInputChange} type="text" placeholder="e.g. Jett, Sage" className="w-full bg-white/5 border border-neon-red/15 p-3 font-sans focus:border-neon-red outline-none text-white" />
+                        </div>
+                      </>
+                    )}
+
+                    {(selectedGame === 'BGMI' || selectedGame === 'PUBG' || selectedGame === 'Free Fire') && (
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-bold text-gold uppercase tracking-widest">Gaming Device</label>
+                        <input name="device" value={formData.device} onChange={handleInputChange} type="text" placeholder="e.g. iPhone 15 Pro, ROG Phone" className="w-full bg-white/5 border border-gold/15 p-3 font-sans focus:border-gold outline-none text-white" />
+                      </div>
+                    )}
                     <div className="space-y-2">
                       <label className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest">Current Role</label>
                       <select name="role" value={formData.role} onChange={handleInputChange} className="w-full bg-white/5 border border-gold/15 p-3 font-sans focus:border-gold outline-none text-white appearance-none">
@@ -1441,16 +1621,18 @@ const RecruitmentPage = ({ onToast, user }: { onToast: (t: string, m: string) =>
                       <label className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest">Game UID</label>
                       <input name="gameUid" value={formData.gameUid} onChange={handleInputChange} type="text" placeholder="5678..." className="w-full bg-white/5 border border-gold/15 p-3 font-sans focus:border-gold outline-none text-white" />
                     </div>
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest">FPS Capability</label>
-                      <select name="fps" value={formData.fps} onChange={handleInputChange} className="w-full bg-white/5 border border-gold/15 p-3 font-sans focus:border-gold outline-none text-white appearance-none">
-                        <option>30 FPS</option>
-                        <option>40 FPS</option>
-                        <option>60 FPS</option>
-                        <option>90 FPS</option>
-                        <option>120 FPS</option>
-                      </select>
-                    </div>
+                    {(selectedGame === 'BGMI' || selectedGame === 'PUBG' || selectedGame === 'Free Fire' || selectedGame === 'COD') && (
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest">FPS Capability</label>
+                        <select name="fps" value={formData.fps} onChange={handleInputChange} className="w-full bg-white/5 border border-gold/15 p-3 font-sans focus:border-gold outline-none text-white appearance-none">
+                          <option>30 FPS</option>
+                          <option>40 FPS</option>
+                          <option>60 FPS</option>
+                          <option>90 FPS</option>
+                          <option>120 FPS</option>
+                        </select>
+                      </div>
+                    )}
                     <div className="space-y-2">
                       <label className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest">Gameplay Video Link</label>
                       <input name="videoLink" value={formData.videoLink} onChange={handleInputChange} type="url" placeholder="YouTube/G-Drive Link" className="w-full bg-white/5 border border-gold/15 p-3 font-sans focus:border-gold outline-none text-white" />
@@ -1683,7 +1865,7 @@ const ManagementPage = ({ isAdmin, onNavigate }: { isAdmin?: boolean, onNavigate
   </div>
 );
 
-const AboutPage = () => (
+const AboutPage = ({ stats }: { stats: { divisionCount: number, proRosterCount: number, foundedYear: number } }) => (
   <div className="pt-24 container mx-auto px-4 min-h-screen">
     <div className="grid lg:grid-cols-2 gap-16 items-center mb-24">
       <div>
@@ -1691,7 +1873,7 @@ const AboutPage = () => (
         <h1 className="font-bebas text-7xl md:text-8xl leading-none text-gold mb-8">BTS<br/><span className="text-white">eSports</span></h1>
         <div className="space-y-4 text-neutral-400 leading-relaxed text-base md:text-lg">
           <p>
-            BTS eSports is a performance-driven gaming organization founded in 2023 with a mission to identify and cultivate elite talent in India.
+            BTS eSports is a performance-driven gaming organization founded in {stats.foundedYear} with a mission to identify and cultivate elite talent in India.
           </p>
           <p>
             What started as a single BGMI roster has evolved into a multi-divisional power infrastructure, representing professional standards in team coordination, strategy, and mental fortitude.
@@ -1703,9 +1885,9 @@ const AboutPage = () => (
       </div>
       <div className="grid grid-cols-2 gap-4">
         {[
-          { color: 'border-gold', val: '2023', lbl: 'Founded' },
-          { color: 'border-neon-red', val: '5', lbl: 'Divisions' },
-          { color: 'border-gold', val: '40+', lbl: 'Pro Roster' },
+          { color: 'border-gold', val: stats.foundedYear.toString(), lbl: 'Founded' },
+          { color: 'border-neon-red', val: stats.divisionCount.toString(), lbl: 'Divisions' },
+          { color: 'border-gold', val: `${stats.proRosterCount}+`, lbl: 'Pro Roster' },
           { color: 'border-neon-red', val: 'ALL', lbl: 'India Presence' },
         ].map((item, i) => (
           <div key={i} className={`bg-neutral-900 border ${item.color} border-t-4 p-8 text-center`}>
@@ -1717,6 +1899,24 @@ const AboutPage = () => (
     </div>
 
     <div className="h-px bg-gradient-to-r from-transparent via-gold/30 to-transparent mb-24" />
+
+    <SectionHeader tag="Executive Oversight" title="Leadership" goldSpan="& Support" />
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-24">
+      {[
+        { role: 'Founder', name: 'BTS Management', desc: 'Visionary leadership focused on Indian eSports growth.', icon: <Shield className="text-gold" size={24} /> },
+        { role: 'Manager', name: 'Operations Head', desc: 'Managing roster dynamics and tournament schedules.', icon: <UserIcon size={24} className="text-neon-red" /> },
+        { role: 'Sponsor', name: 'Tier 1 Partners', desc: 'Fueling our journey through the competitive circuit.', icon: <Flame size={24} className="text-gold" /> }
+      ].map((lead, i) => (
+        <div key={i} className="bg-neutral-900 border border-white/5 p-8 relative group overflow-hidden">
+          <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+            {lead.icon}
+          </div>
+          <div className="text-gold text-[10px] font-black uppercase tracking-[0.2em] mb-4">{lead.role}</div>
+          <h3 className="font-bebas text-3xl text-white tracking-widest mb-2">{lead.name}</h3>
+          <p className="text-xs text-neutral-500 leading-relaxed uppercase font-bold tracking-tighter">{lead.desc}</p>
+        </div>
+      ))}
+    </div>
 
     <SectionHeader tag="Foundational Code" title="Core" goldSpan="Values" />
     <div className="grid grid-cols-2 md:grid-cols-3 gap-4 pb-24">
@@ -2479,7 +2679,7 @@ const ResultsPage = ({ onToast, isAdmin }: { onToast: (t: string, m: string) => 
   );
 };
 
-const AdminDashboard = ({ onToast, adminRole, user }: { onToast: (t: string, m: string) => void, adminRole: string | null, user: User | null }) => {
+const AdminDashboard = ({ onToast, adminRole, user, orgStatsProp }: { onToast: (t: string, m: string) => void, adminRole: string | null, user: User | null, orgStatsProp: any }) => {
   const [activeTab, setActiveTab] = useState<'tournaments' | 'applications' | 'results' | 'highlights' | 'squad' | 'scrims' | 'registrations' | 'divisions' | 'users' | 'admins' | 'stats' | 'live' | 'achievements' | 'settings'>('tournaments');
   const [squad, setSquad] = useState<any[]>([]);
   const [users, setUsers] = useState<any[]>([]);
@@ -2501,9 +2701,218 @@ const AdminDashboard = ({ onToast, adminRole, user }: { onToast: (t: string, m: 
   const [editingSquadId, setEditingSquadId] = useState<string | null>(null);
   const [editingDivisionId, setEditingDivisionId] = useState<string | null>(null);
   const [editingAchievementId, setEditingAchievementId] = useState<string | null>(null);
+  const [syncingSheets, setSyncingSheets] = useState(false);
+  const [googleSheetsUrl, setGoogleSheetsUrl] = useState(localStorage.getItem('bts_google_sheets_url') || '');
+
+  const exportRosterToCSV = () => {
+    if (!squad || squad.length === 0) {
+      onToast('Error', 'No data available to export.');
+      return;
+    }
+    
+    const headers = [
+      'Last Sync', 'Player Name', 'IGN', 'Division', 'Scrims Match', 'Scrims Kills', 
+      'Tournament Matches', 'Tournament Kills', 'E-Kills', 'E-Match', 'M-Kills', 'M-Match', 
+      'S-Kills', 'S-Match', 'V-Kills', 'V-Match', 'Total Kills', 'Total Matches', 'Status'
+    ];
+    
+    const timestamp = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
+    
+    const csvRows = [
+      headers.join(','),
+      ...squad.map(p => {
+        const divName = divisions.find(d => d.id === p.div)?.name || p.div || 'General';
+        const totalKills = (p.scrimsKills || 0) + (p.tourneyKills || 0) + (p.openRoomKills || 0);
+        const totalMatches = (p.scrimsMatches || 0) + (p.tourneyMatches || 0) + (p.openRoomMatches || 0);
+
+        return [
+          `"${timestamp}"`,
+          `"${p.name || ''}"`,
+          `"${p.ign || ''}"`,
+          `"${divName}"`,
+          p.scrimsMatches || 0,
+          p.scrimsKills || 0,
+          p.tourneyMatches || 0,
+          p.tourneyKills || 0,
+          p.erangelKills || 0,
+          p.erangelMatches || 0,
+          p.miramarKills || 0,
+          p.miramarMatches || 0,
+          p.sanhokKills || 0,
+          p.sanhokMatches || 0,
+          p.vikendiKills || 0,
+          p.vikendiMatches || 0,
+          totalKills,
+          totalMatches,
+          `"${p.status || 'Active'}"`
+        ].join(',');
+      })
+    ];
+    
+    try {
+      const blob = new Blob([csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', `BTS_Pro_Roster_${new Date().toISOString().split('T')[0]}.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      onToast('Export Complete', 'Pro Roster data has been downloaded as CSV.');
+    } catch (e) {
+      console.error(e);
+      onToast('Export Failed', 'An error occurred during data generation.');
+    }
+  };
+
+  const [lastSyncResult, setLastSyncResult] = useState<string>(localStorage.getItem('bts_last_sync') || 'Never');
+
+  const downloadSquadCSV = () => {
+    if (!squad || squad.length === 0) {
+      onToast('Error', 'No data available to export');
+      return;
+    }
+
+    const headers = ['Player Name', 'IGN', 'Division', 'K/D', 'Total Matches', 'Total Kills', 'Scrims Kills', 'Tournament Kills', 'E-Kills', 'M-Kills', 'S-Kills', 'V-Kills', 'Status'];
+    const csvContent = [
+      headers.join(','),
+      ...squad.map(p => {
+        const divName = divisions.find(d => d.id === p.div)?.name || p.div || 'General';
+        const totalKills = (p.scrimsKills || 0) + (p.tourneyKills || 0) + (p.openRoomKills || 0);
+        const totalMatches = (p.scrimsMatches || 0) + (p.tourneyMatches || 0) + (p.openRoomMatches || 0);
+        const kd = totalMatches > 0 ? (totalKills / totalMatches).toFixed(2) : '0.00';
+        
+        return [
+          `"${p.name || ''}"`,
+          `"${p.ign || ''}"`,
+          `"${divName}"`,
+          kd,
+          totalMatches,
+          totalKills,
+          p.scrimsKills || 0,
+          p.tourneyKills || 0,
+          p.erangelKills || 0,
+          p.miramarKills || 0,
+          p.sanhokKills || 0,
+          p.vikendiKills || 0,
+          p.status || 'Active'
+        ].join(',');
+      })
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `BTS_PRO_ROSTER_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    onToast('Export Started', 'CSV file generation successful.');
+  };
+
+  const testGoogleSheetsConnectivity = async () => {
+    if (!googleSheetsUrl) {
+      onToast('Error', 'Google Sheets URL is not configured.');
+      return;
+    }
+    setSyncingSheets(true);
+    try {
+      await fetch(googleSheetsUrl, { method: 'GET', mode: 'no-cors' });
+      onToast('Signal Sent', 'Ping transmitted to script. Check script execution log for "doGet" trigger.');
+    } catch (error) {
+      onToast('Connection Failed', 'The URL appears to be blocked or invalid.');
+    } finally {
+      setSyncingSheets(false);
+    }
+  };
+
+  const performGoogleSheetsSync = async () => {
+    if (!googleSheetsUrl) {
+      onToast('Configuration Required', 'Please set your Google Apps Script URL in the Admin Plan tab first.');
+      setActiveTab('data');
+      return;
+    }
+
+    if (!googleSheetsUrl.includes('script.google.com/macros/s/')) {
+      onToast('Invalid URL', 'This does not look like a Google Script Web App URL. It should contain "/macros/s/.../exec"');
+      return;
+    }
+
+    setSyncingSheets(true);
+    try {
+      // Create a lookup for division names
+      const divMap = (divisions || []).reduce((acc: any, d: any) => {
+        acc[d.id] = d.name;
+        return acc;
+      }, {});
+
+      if (!squad || squad.length === 0) {
+        onToast('Sync Aborted', 'No player data found to sync. Try refreshing the page.');
+        setSyncingSheets(false);
+        return;
+      }
+
+      // Prepare the payload with detailed mapping as requested
+      const payload = {
+        timestamp: new Date().toLocaleString(),
+        roster: squad.map(p => ({
+          name: ((p as any).name || (p as any).playerName || (p.ign && p.ign.includes('•') ? p.ign.split('•')[1] : p.ign) || 'Unknown').trim(), 
+          ign: (p.ign || 'N/A').trim(),
+          division: divMap[p.div] || p.div || 'General',
+          scrimsMatches: p.scrimsMatches || 0,
+          scrimsKills: p.scrimsKills || 0,
+          tourneyMatches: p.tourneyMatches || 0,
+          tourneyKills: p.tourneyKills || 0,
+          erangelKills: p.erangelKills || 0,
+          erangelMatches: p.erangelMatches || 0,
+          miramarKills: p.miramarKills || 0,
+          miramarMatches: p.miramarMatches || 0,
+          sanhokKills: p.sanhokKills || 0,
+          sanhokMatches: p.sanhokMatches || 0,
+          vikendiKills: p.vikendiKills || 0,
+          vikendiMatches: p.vikendiMatches || 0,
+          totalKills: (p.scrimsKills || 0) + (p.tourneyKills || 0) + (p.openRoomKills || 0),
+          totalMatches: (p.scrimsMatches || 0) + (p.tourneyMatches || 0) + (p.openRoomMatches || 0),
+          status: p.status || 'Active'
+        }))
+      };
+
+      // Push to Google
+      await fetch(googleSheetsUrl, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: {
+          'Content-Type': 'text/plain',
+        },
+        body: JSON.stringify(payload)
+      });
+      
+      const now = new Date().toLocaleString();
+      setLastSyncResult(`Last Sync: ${now} (${squad.length} Players)`);
+      localStorage.setItem('bts_last_sync', `Last Sync: ${now} (${squad.length} Players)`);
+      onToast('Broadcast Sent', `Transmitting ${squad.length} player profiles to Cloud.`);
+    } catch (error) {
+      console.error('Sync Error:', error);
+      onToast('Sync Blocked', 'Network connection failed or URL is invalid.');
+    } finally {
+      setSyncingSheets(false);
+    }
+  };
+
+  const [showScriptHelp, setShowScriptHelp] = useState(false);
+
+  const saveSheetsUrl = (url: string) => {
+    setGoogleSheetsUrl(url);
+    localStorage.setItem('bts_google_sheets_url', url);
+  };
   
   const [matchStatForm, setMatchStatForm] = useState({
     playerId: '',
+    game: 'BGMI',
+    map: '',
     matchType: 'scrim' as 'scrim' | 'tournament' | 'open_room',
     kills: '0',
     matchBrief: ''
@@ -2528,6 +2937,7 @@ const AdminDashboard = ({ onToast, adminRole, user }: { onToast: (t: string, m: 
   const [tournamentForm, setTournamentForm] = useState({
     name: '',
     game: 'BGMI',
+    map: '',
     prize: '',
     total: '20',
     status: 'open',
@@ -2568,24 +2978,35 @@ const AdminDashboard = ({ onToast, adminRole, user }: { onToast: (t: string, m: 
     youtube: '',
     discord: '',
     squadNumber: '',
-    game: 'BGMI'
+    game: 'BGMI',
+    erangelKills: '0',
+    erangelMatches: '0',
+    miramarKills: '0',
+    miramarMatches: '0',
+    sanhokKills: '0',
+    sanhokMatches: '0',
+    vikendiKills: '0',
+    vikendiMatches: '0',
+    missionLog: []
   });
+  const [matchDraft, setMatchDraft] = useState({ map: 'Erangel', result: 'WIN', kills: '0', rank: '1', date: 'Just now' });
 
   const availableTabs = [
-    { id: 'tournaments', roles: ['Super Admin', 'Tournament Manager'] },
-    { id: 'registrations', roles: ['Super Admin', 'Tournament Manager'] },
-    { id: 'results', roles: ['Super Admin', 'Tournament Manager'] },
-    { id: 'stats', roles: ['Super Admin', 'Tournament Manager', 'Head Scout'] },
-    { id: 'live', roles: ['Super Admin', 'Content Moderator'] },
-    { id: 'highlights', roles: ['Super Admin', 'Content Moderator'] },
-    { id: 'achievements', roles: ['Super Admin', 'Content Moderator'] },
-    { id: 'scrims', roles: ['Super Admin', 'Content Moderator'] },
-    { id: 'divisions', roles: ['Super Admin', 'Content Moderator'] },
-    { id: 'applications', roles: ['Super Admin', 'Head Scout'] },
-    { id: 'squad', roles: ['Super Admin', 'Head Scout'] },
-    { id: 'users', roles: ['Super Admin', 'Head Scout', 'Tournament Manager'] },
-    { id: 'admins', roles: ['Super Admin'] },
-    { id: 'settings', roles: ['Super Admin'] },
+    { id: 'tournaments', label: 'Tournaments', roles: ['Super Admin', 'Tournament Manager'] },
+    { id: 'registrations', label: 'Registrations', roles: ['Super Admin', 'Tournament Manager'] },
+    { id: 'results', label: 'Results', roles: ['Super Admin', 'Tournament Manager'] },
+    { id: 'stats', label: 'Combat Logs', roles: ['Super Admin', 'Tournament Manager', 'Head Scout'] },
+    { id: 'live', label: 'Live Broadcast', roles: ['Super Admin', 'Content Moderator'] },
+    { id: 'highlights', label: 'Highlights', roles: ['Super Admin', 'Content Moderator'] },
+    { id: 'achievements', label: 'Achievements', roles: ['Super Admin', 'Content Moderator'] },
+    { id: 'scrims', label: 'Scrims', roles: ['Super Admin', 'Content Moderator'] },
+    { id: 'divisions', label: 'Divisions', roles: ['Super Admin', 'Content Moderator'] },
+    { id: 'applications', label: 'Recruitment', roles: ['Super Admin', 'Head Scout'] },
+    { id: 'squad', label: 'Pro Roster', roles: ['Super Admin', 'Head Scout'] },
+    { id: 'data', label: 'Admin Plan', roles: ['Super Admin'] },
+    { id: 'users', label: 'User Directory', roles: ['Super Admin', 'Head Scout', 'Tournament Manager'] },
+    { id: 'admins', label: 'Admin Security', roles: ['Super Admin'] },
+    { id: 'settings', label: 'Settings', roles: ['Super Admin', 'Content Moderator', 'Tournament Manager'] },
   ];
 
   const filteredTabs = availableTabs.filter(tab => tab.roles.includes(adminRole || ''));
@@ -2600,11 +3021,22 @@ const AdminDashboard = ({ onToast, adminRole, user }: { onToast: (t: string, m: 
     fetchData();
   }, [activeTab, selectedTournamentForRegs]);
 
+  useEffect(() => {
+    if (orgStatsProp && activeTab === 'settings') {
+      setOrgStatsForm({
+        divisionCount: orgStatsProp.divisionCount,
+        proRosterCount: orgStatsProp.proRosterCount,
+        foundedYear: orgStatsProp.foundedYear
+      });
+    }
+  }, [orgStatsProp, activeTab]);
+
   const startEditing = (t: any) => {
     setEditingTournamentId(t.id);
     setTournamentForm({
       name: t.name || '',
       game: t.game || 'BGMI',
+      map: t.map || '',
       prize: t.prize || '',
       total: String(t.total || '20'),
       status: t.status || 'open',
@@ -2663,7 +3095,16 @@ const AdminDashboard = ({ onToast, adminRole, user }: { onToast: (t: string, m: 
       youtube: s.youtube || '',
       discord: s.discord || '',
       squadNumber: s.squadNumber || '',
-      game: s.game || 'BGMI'
+      game: s.game || 'BGMI',
+      erangelKills: String(s.erangelKills || '0'),
+      erangelMatches: String(s.erangelMatches || '0'),
+      miramarKills: String(s.miramarKills || '0'),
+      miramarMatches: String(s.miramarMatches || '0'),
+      sanhokKills: String(s.sanhokKills || '0'),
+      sanhokMatches: String(s.sanhokMatches || '0'),
+      vikendiKills: String(s.vikendiKills || '0'),
+      vikendiMatches: String(s.vikendiMatches || '0'),
+      missionLog: s.missionLog || []
     });
     setShowCreateForm(true);
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -2709,6 +3150,7 @@ const AdminDashboard = ({ onToast, adminRole, user }: { onToast: (t: string, m: 
     setTournamentForm({
       name: '',
       game: 'BGMI',
+      map: '',
       prize: '',
       total: '20',
       status: 'open',
@@ -2757,7 +3199,16 @@ const AdminDashboard = ({ onToast, adminRole, user }: { onToast: (t: string, m: 
       youtube: '',
       discord: '',
       squadNumber: '',
-      game: 'BGMI'
+      game: 'BGMI',
+      erangelKills: '0',
+      erangelMatches: '0',
+      miramarKills: '0',
+      miramarMatches: '0',
+      sanhokKills: '0',
+      sanhokMatches: '0',
+      vikendiKills: '0',
+      vikendiMatches: '0',
+      missionLog: []
     });
     setDivisionForm({
       key: '',
@@ -2822,10 +3273,15 @@ const AdminDashboard = ({ onToast, adminRole, user }: { onToast: (t: string, m: 
         const q = query(collection(db, 'users'), orderBy('updatedAt', 'desc'));
         const snap = await getDocs(q);
         setUsers(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-      } else if (activeTab === 'stats') {
+      } else if (activeTab === 'stats' || activeTab === 'data') {
         const q = query(collection(db, 'squad'), orderBy('ign'));
         const snap = await getDocs(q);
-        setSquad(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        const roster = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        setSquad(roster);
+        
+        const dSnap = await getDocs(query(collection(db, 'divisions'), orderBy('name')));
+        const divs = dSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        setDivisions(divs);
       } else if (activeTab === 'admins') {
         const q = query(collection(db, 'admins'), orderBy('email'));
         const snap = await getDocs(q);
@@ -2834,6 +3290,10 @@ const AdminDashboard = ({ onToast, adminRole, user }: { onToast: (t: string, m: 
         const sSnap = await getDoc(doc(db, 'site_config', 'social'));
         if (sSnap.exists()) {
           setSocialLinksForm(sSnap.data() as any);
+        }
+        const oSnap = await getDoc(doc(db, 'site_config', 'org_stats'));
+        if (oSnap.exists()) {
+          setOrgStatsForm(oSnap.data() as any);
         }
       } else if (activeTab === 'registrations') {
         const tSnap = await getDocs(query(collection(db, 'tournaments'), orderBy('createdAt', 'desc')));
@@ -2858,18 +3318,32 @@ const AdminDashboard = ({ onToast, adminRole, user }: { onToast: (t: string, m: 
   };
 
   const [socialLinksForm, setSocialLinksForm] = useState({ youtube: '', instagram: '' });
+  const [orgStatsForm, setOrgStatsForm] = useState({ divisionCount: orgStatsProp?.divisionCount || 5, proRosterCount: orgStatsProp?.proRosterCount || 40, foundedYear: orgStatsProp?.foundedYear || 2019 });
   const [isSavingSettings, setIsSavingSettings] = useState(false);
 
   const saveSettings = async () => {
     setIsSavingSettings(true);
     try {
       await setDoc(doc(db, 'site_config', 'social'), { ...socialLinksForm, updatedAt: serverTimestamp() }, { merge: true });
-      onToast('Settings Saved', 'Social media configuration updated.');
+      await setDoc(doc(db, 'site_config', 'org_stats'), { ...orgStatsForm, updatedAt: serverTimestamp() }, { merge: true });
+      onToast('Settings Saved', 'Organization profile and social links updated.');
     } catch (error) {
       reportFirestoreError(error, 'write', 'site_config/social', onToast);
     } finally {
       setIsSavingSettings(false);
     }
+  };
+
+  const addMatchToLog = () => {
+    const newLog = [matchDraft, ...(squadForm.missionLog || [])].slice(0, 20); // Keep last 20
+    setSquadForm({ ...squadForm, missionLog: newLog });
+    onToast('Mission Logged', `Recorded ${matchDraft.kills} kills in ${matchDraft.map}`);
+  };
+
+  const removeMatchFromLog = (index: number) => {
+    const newLog = [...squadForm.missionLog];
+    newLog.splice(index, 1);
+    setSquadForm({ ...squadForm, missionLog: newLog });
   };
 
   const promoteToSquad = async (app: any) => {
@@ -3323,6 +3797,15 @@ const AdminDashboard = ({ onToast, adminRole, user }: { onToast: (t: string, m: 
         youtube: squadForm.youtube,
         discord: squadForm.discord,
         game: squadForm.game,
+        erangelKills: parseInt(squadForm.erangelKills) || 0,
+        erangelMatches: parseInt(squadForm.erangelMatches) || 0,
+        miramarKills: parseInt(squadForm.miramarKills) || 0,
+        miramarMatches: parseInt(squadForm.miramarMatches) || 0,
+        sanhokKills: parseInt(squadForm.sanhokKills) || 0,
+        sanhokMatches: parseInt(squadForm.sanhokMatches) || 0,
+        vikendiKills: parseInt(squadForm.vikendiKills) || 0,
+        vikendiMatches: parseInt(squadForm.vikendiMatches) || 0,
+        missionLog: squadForm.missionLog || [],
         updatedAt: serverTimestamp()
       };
 
@@ -3391,6 +3874,11 @@ const AdminDashboard = ({ onToast, adminRole, user }: { onToast: (t: string, m: 
         updateData.openRoomMatches = (player.openRoomMatches || 0) + 1;
       }
 
+      // Add last match hint to metadata if possible (optional but cool)
+      if (matchStatForm.map) {
+         updateData.lastMatchMap = matchStatForm.map;
+      }
+
       // Calculate totals reliably
       const sk = updateData.scrimsKills !== undefined ? updateData.scrimsKills : (player.scrimsKills || 0);
       const sm = updateData.scrimsMatches !== undefined ? updateData.scrimsMatches : (player.scrimsMatches || 0);
@@ -3414,7 +3902,14 @@ const AdminDashboard = ({ onToast, adminRole, user }: { onToast: (t: string, m: 
       await updateDoc(doc(db, 'squad', matchStatForm.playerId), updateData);
       
       onToast('Stats Synchronized', `${player.ign}'s combat log updated (+${killsToAdd} kills).`);
-      setMatchStatForm({ ...matchStatForm, kills: '0', matchBrief: '' });
+      setMatchStatForm({ 
+        playerId: '', 
+        game: 'BGMI', 
+        map: '', 
+        matchType: 'scrim', 
+        kills: '0', 
+        matchBrief: '' 
+      });
       fetchData();
     } catch (error) {
       reportFirestoreError(error, 'update', `squad/${matchStatForm.playerId}`, onToast);
@@ -3483,7 +3978,7 @@ const AdminDashboard = ({ onToast, adminRole, user }: { onToast: (t: string, m: 
               activeTab === tabObj.id ? 'bg-gold text-black border-gold' : 'text-gold border-gold/30 hover:border-gold'
             }`}
           >
-            {tabObj.id}
+            {activeTab === tabObj.id ? tabObj.label : tabObj.label}
           </button>
         ))}
       </div>
@@ -3640,17 +4135,35 @@ const AdminDashboard = ({ onToast, adminRole, user }: { onToast: (t: string, m: 
 
             {activeTab === 'squad' && (
               <div className="space-y-8">
-                <div className="flex justify-between items-center bg-white/5 p-6 border border-gold/10">
-                   <div>
+                <div className="flex flex-col md:flex-row gap-4 bg-white/5 p-6 border border-gold/10">
+                   <div className="flex-1">
                       <h4 className="font-bebas text-2xl text-gold tracking-widest">Digital Roster</h4>
                       <p className="text-neutral-500 text-[10px] uppercase font-bold tracking-widest">{squad.length} Active Operatives</p>
                    </div>
-                   <button 
-                     onClick={() => showCreateForm ? cancelForm() : setShowCreateForm(true)}
-                     className="bg-gold text-black px-6 py-2 text-[10px] font-black uppercase tracking-widest hover:bg-white transition-all rounded-[2px]"
-                   >
-                     {showCreateForm ? 'Abort' : 'Recruit New'}
-                   </button>
+                   
+                   <div className="flex flex-wrap items-center gap-3">
+                      <button 
+                        onClick={() => exportRosterToCSV()}
+                        className="flex items-center gap-2 bg-blue-600/10 text-blue-500 border border-blue-500/20 px-4 py-2 text-[10px] font-black uppercase tracking-widest hover:bg-blue-600 hover:text-white transition-all rounded-[2px]"
+                      >
+                        <Download size={12} /> Excel/CSV
+                      </button>
+                      
+                      <button 
+                        onClick={performGoogleSheetsSync}
+                        disabled={syncingSheets}
+                        className={`flex items-center gap-2 ${syncingSheets ? 'animate-pulse opacity-50' : ''} bg-green-600/10 text-green-500 border border-green-500/20 px-4 py-2 text-[10px] font-black uppercase tracking-widest hover:bg-green-600 hover:text-white transition-all rounded-[2px]`}
+                      >
+                        <FileSpreadsheet size={12} /> {syncingSheets ? 'Syncing...' : 'Sync Sheets'}
+                      </button>
+
+                      <button 
+                        onClick={() => showCreateForm ? cancelForm() : setShowCreateForm(true)}
+                        className="bg-gold text-black px-6 py-2 text-[10px] font-black uppercase tracking-widest hover:bg-white transition-all rounded-[2px]"
+                      >
+                        {showCreateForm ? 'Abort' : 'Recruit New'}
+                      </button>
+                   </div>
                 </div>
 
                 {showCreateForm && (
@@ -3660,7 +4173,7 @@ const AdminDashboard = ({ onToast, adminRole, user }: { onToast: (t: string, m: 
                     onSubmit={submitSquadMember}
                     className="bg-white/5 border border-gold/20 p-8 space-y-6"
                    >
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                        <div className="space-y-1">
                           <label className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest">In-Game Name (IGN)</label>
                           <input 
@@ -3823,8 +4336,88 @@ const AdminDashboard = ({ onToast, adminRole, user }: { onToast: (t: string, m: 
                             className="w-full bg-black/40 border border-white/10 p-3 text-sm text-white focus:border-gold outline-none" 
                           />
                        </div>
-                    </div>
-                    <div className="bg-gold/5 p-4 border border-gold/20 flex justify-between items-center">
+
+                       <div className="md:col-span-2 lg:col-span-3 pt-4 border-t border-white/5 grid grid-cols-2 sm:grid-cols-4 gap-4">
+                          <div className="space-y-1">
+                             <label className="text-[8px] font-bold text-neutral-400 uppercase tracking-widest">Erangel K/M</label>
+                             <div className="grid grid-cols-2 gap-1">
+                               <input placeholder="Kill" value={squadForm.erangelKills} onChange={(e) => setSquadForm({...squadForm, erangelKills: e.target.value})} type="number" className="w-full bg-black/40 border border-white/5 p-2 text-xs text-white focus:border-gold outline-none" />
+                               <input placeholder="Match" value={squadForm.erangelMatches} onChange={(e) => setSquadForm({...squadForm, erangelMatches: e.target.value})} type="number" className="w-full bg-black/40 border border-white/5 p-2 text-xs text-white focus:border-gold outline-none" />
+                             </div>
+                          </div>
+                          <div className="space-y-1">
+                             <label className="text-[8px] font-bold text-neutral-400 uppercase tracking-widest">Miramar K/M</label>
+                             <div className="grid grid-cols-2 gap-1">
+                               <input placeholder="Kill" value={squadForm.miramarKills} onChange={(e) => setSquadForm({...squadForm, miramarKills: e.target.value})} type="number" className="w-full bg-black/40 border border-white/5 p-2 text-xs text-white focus:border-gold outline-none" />
+                               <input placeholder="Match" value={squadForm.miramarMatches} onChange={(e) => setSquadForm({...squadForm, miramarMatches: e.target.value})} type="number" className="w-full bg-black/40 border border-white/5 p-2 text-xs text-white focus:border-gold outline-none" />
+                             </div>
+                          </div>
+                          <div className="space-y-1">
+                             <label className="text-[8px] font-bold text-neutral-400 uppercase tracking-widest">Sanhok K/M</label>
+                             <div className="grid grid-cols-2 gap-1">
+                               <input placeholder="Kill" value={squadForm.sanhokKills} onChange={(e) => setSquadForm({...squadForm, sanhokKills: e.target.value})} type="number" className="w-full bg-black/40 border border-white/5 p-2 text-xs text-white focus:border-gold outline-none" />
+                               <input placeholder="Match" value={squadForm.sanhokMatches} onChange={(e) => setSquadForm({...squadForm, sanhokMatches: e.target.value})} type="number" className="w-full bg-black/40 border border-white/5 p-2 text-xs text-white focus:border-gold outline-none" />
+                             </div>
+                          </div>
+                          <div className="space-y-1">
+                             <label className="text-[8px] font-bold text-neutral-400 uppercase tracking-widest">Vikendi K/M</label>
+                             <div className="grid grid-cols-2 gap-1">
+                               <input placeholder="Kill" value={squadForm.vikendiKills} onChange={(e) => setSquadForm({...squadForm, vikendiKills: e.target.value})} type="number" className="w-full bg-black/40 border border-white/5 p-2 text-xs text-white focus:border-gold outline-none" />
+                               <input placeholder="Match" value={squadForm.vikendiMatches} onChange={(e) => setSquadForm({...squadForm, vikendiMatches: e.target.value})} type="number" className="w-full bg-black/40 border border-white/5 p-2 text-xs text-white focus:border-gold outline-none" />
+                             </div>
+                          </div>
+                       </div>
+
+                        <div className="md:col-span-2 lg:col-span-3 pt-6 border-t border-white/10">
+                           <h5 className="text-[10px] font-black text-gold uppercase tracking-[0.2em] mb-4">Tactical Mission Log (Recent Matches)</h5>
+                           <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-4 bg-black/20 p-4 border border-white/5">
+                              <div className="space-y-1">
+                                 <label className="text-[8px] font-bold text-neutral-500 uppercase tracking-widest">Map</label>
+                                 <select value={matchDraft.map} onChange={(e) => setMatchDraft({...matchDraft, map: e.target.value})} className="w-full bg-black border border-white/10 p-2 text-xs text-white outline-none">
+                                    {['Erangel', 'Miramar', 'Sanhok', 'Vikendi', 'Livik', 'Nusa'].map(m => <option key={m} value={m}>{m}</option>)}
+                                 </select>
+                              </div>
+                              <div className="space-y-1">
+                                 <label className="text-[8px] font-bold text-neutral-500 uppercase tracking-widest">Result</label>
+                                 <select value={matchDraft.result} onChange={(e) => setMatchDraft({...matchDraft, result: e.target.value})} className="w-full bg-black border border-white/10 p-2 text-xs text-white outline-none">
+                                    <option value="WIN">WIN</option>
+                                    <option value="LOSS">LOSS</option>
+                                 </select>
+                              </div>
+                              <div className="space-y-1">
+                                 <label className="text-[8px] font-bold text-neutral-500 uppercase tracking-widest">Kills</label>
+                                 <input value={matchDraft.kills} onChange={(e) => setMatchDraft({...matchDraft, kills: e.target.value})} type="number" className="w-full bg-black border border-white/10 p-2 text-xs text-white outline-none" />
+                              </div>
+                              <div className="space-y-1">
+                                 <label className="text-[8px] font-bold text-neutral-500 uppercase tracking-widest">Rank</label>
+                                 <input value={matchDraft.rank} onChange={(e) => setMatchDraft({...matchDraft, rank: e.target.value})} type="text" placeholder="#1" className="w-full bg-black border border-white/10 p-2 text-xs text-white outline-none" />
+                              </div>
+                              <div className="flex items-end">
+                                 <button type="button" onClick={addMatchToLog} className="w-full bg-gold/10 text-gold border border-gold/20 py-2 text-[8px] font-black uppercase tracking-widest hover:bg-gold hover:text-black transition-all">
+                                    Log Match
+                                 </button>
+                              </div>
+                           </div>
+
+                           <div className="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+                              {(squadForm.missionLog || []).map((m: any, idx: number) => (
+                                 <div key={idx} className="flex items-center justify-between p-3 bg-white/5 border border-white/5 group">
+                                    <div className="flex items-center gap-3">
+                                       <div className={`w-1 h-6 ${m.result === 'WIN' ? 'bg-green-500' : 'bg-red-500'}`} />
+                                       <div>
+                                          <div className="text-[9px] font-bold text-white uppercase">{m.map} • {m.kills} Kills</div>
+                                          <div className="text-[7px] text-neutral-500 uppercase">{m.result} • Rank {m.rank}</div>
+                                       </div>
+                                    </div>
+                                    <button type="button" onClick={() => removeMatchFromLog(idx)} className="opacity-0 group-hover:opacity-100 p-1 text-neutral-500 hover:text-red-500 transition-all">
+                                       <Trash2 size={12} />
+                                    </button>
+                                 </div>
+                              ))}
+                           </div>
+                        </div>
+                     </div>
+                  <div className="bg-gold/5 p-4 border border-gold/20 flex justify-between items-center">
                        <div>
                           <span className="text-[8px] font-black text-neutral-500 uppercase tracking-widest block">Calculated Performance</span>
                           <div className="flex gap-4 mt-1">
@@ -3843,7 +4436,7 @@ const AdminDashboard = ({ onToast, adminRole, user }: { onToast: (t: string, m: 
                   </motion.form>
                 )}
 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                    {squad.map(player => (
                       <div key={player.id} className="bg-neutral-900 border border-white/5 p-6 group hover:border-gold/20 transition-all flex justify-between items-start relative overflow-hidden">
                          {player.status === 'Inactive' && (
@@ -3911,7 +4504,7 @@ const AdminDashboard = ({ onToast, adminRole, user }: { onToast: (t: string, m: 
                     onSubmit={submitAchievement}
                     className="bg-white/5 border border-gold/20 p-8 space-y-6"
                    >
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                        <div className="space-y-1">
                           <label className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest">Achievement Title</label>
                           <input 
@@ -3983,7 +4576,7 @@ const AdminDashboard = ({ onToast, adminRole, user }: { onToast: (t: string, m: 
                   </motion.form>
                 )}
 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                    {achievements.map(ach => (
                       <div key={ach.id} className="bg-neutral-900 border border-white/5 group hover:border-gold/20 transition-all overflow-hidden">
                          <div className="aspect-video relative overflow-hidden">
@@ -4004,8 +4597,335 @@ const AdminDashboard = ({ onToast, adminRole, user }: { onToast: (t: string, m: 
                                </button>
                             </div>
                          </div>
+
+                         <div className="md:col-span-2 lg:col-span-3 pt-6 border-t border-white/10">
+                            <h5 className="text-[10px] font-black text-gold uppercase tracking-[0.2em] mb-4">Tactical Mission Log (Recent Matches)</h5>
+                            <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4 bg-black/20 p-4 border border-white/5">
+                               <div className="space-y-1">
+                                  <label className="text-[8px] font-bold text-neutral-500 uppercase tracking-widest">Map</label>
+                                  <select value={matchDraft.map} onChange={(e) => setMatchDraft({...matchDraft, map: e.target.value})} className="w-full bg-black border border-white/10 p-2 text-xs text-white outline-none">
+                                     {['Erangel', 'Miramar', 'Sanhok', 'Vikendi', 'Livik', 'Nusa'].map(m => <option key={m} value={m}>{m}</option>)}
+                                  </select>
+                               </div>
+                               <div className="space-y-1">
+                                  <label className="text-[8px] font-bold text-neutral-500 uppercase tracking-widest">Result</label>
+                                  <select value={matchDraft.result} onChange={(e) => setMatchDraft({...matchDraft, result: e.target.value})} className="w-full bg-black border border-white/10 p-2 text-xs text-white outline-none">
+                                     <option value="WIN">WIN</option>
+                                     <option value="LOSS">LOSS</option>
+                                  </select>
+                               </div>
+                               <div className="space-y-1">
+                                  <label className="text-[8px] font-bold text-neutral-500 uppercase tracking-widest">Kills</label>
+                                  <input value={matchDraft.kills} onChange={(e) => setMatchDraft({...matchDraft, kills: e.target.value})} type="number" className="w-full bg-black border border-white/10 p-2 text-xs text-white outline-none" />
+                               </div>
+                               <div className="space-y-1">
+                                  <label className="text-[8px] font-bold text-neutral-500 uppercase tracking-widest">Rank</label>
+                                  <input value={matchDraft.rank} onChange={(e) => setMatchDraft({...matchDraft, rank: e.target.value})} type="text" placeholder="#1" className="w-full bg-black border border-white/10 p-2 text-xs text-white outline-none" />
+                               </div>
+                               <div className="flex items-end">
+                                  <button type="button" onClick={addMatchToLog} className="w-full bg-gold/10 text-gold border border-gold/20 py-2 text-[8px] font-black uppercase tracking-widest hover:bg-gold hover:text-black transition-all">
+                                     Log Match
+                                  </button>
+                               </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+                               {(squadForm.missionLog || []).map((m: any, idx: number) => (
+                                  <div key={idx} className="flex items-center justify-between p-3 bg-white/5 border border-white/5 group">
+                                     <div className="flex items-center gap-3">
+                                        <div className={`w-1 h-6 ${m.result === 'WIN' ? 'bg-green-500' : 'bg-red-500'}`} />
+                                        <div>
+                                           <div className="text-[9px] font-bold text-white uppercase">{m.map} • {m.kills} Kills</div>
+                                           <div className="text-[7px] text-neutral-500 uppercase">{m.result} • Rank {m.rank}</div>
+                                        </div>
+                                     </div>
+                                     <button type="button" onClick={() => removeMatchFromLog(idx)} className="opacity-0 group-hover:opacity-100 p-1 text-neutral-500 hover:text-red-500 transition-all">
+                                        <Trash2 size={12} />
+                                     </button>
+                                  </div>
+                               ))}
+                            </div>
+                         </div>
                       </div>
                    ))}
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'data' && (
+              <div className="space-y-8">
+                <SectionHeader tag="Executive Control" title="Admin" goldSpan="Plan" sub="Manage data synchronization and organization-wide exports." className="!text-left !items-start" />
+                
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+                  {[
+                    { label: 'Total Operatives', value: squad.length, icon: Users, color: 'text-gold' },
+                    { label: 'Active Divisions', value: divisions.length, icon: Shield, color: 'text-blue-400' },
+                    { label: 'Cloud Sync Status', value: googleSheetsUrl ? 'ENABLED' : 'OFFLINE', icon: Zap, color: googleSheetsUrl ? 'text-green-500' : 'text-neutral-500' },
+                    { label: 'Last Data Dump', value: lastSyncResult?.split('(')[0] || 'NEVER', icon: Download, color: 'text-neutral-400' }
+                  ].map((stat, i) => (
+                    <div key={i} className="bg-white/5 border border-white/10 p-6 rounded-sm relative overflow-hidden group">
+                      <div className="absolute top-0 right-0 p-2 opacity-5 group-hover:opacity-10 transition-opacity">
+                        <stat.icon size={60} />
+                      </div>
+                      <div className="text-[8px] font-black text-neutral-500 uppercase tracking-widest mb-1">{stat.label}</div>
+                      <div className={`font-bebas text-3xl ${stat.color} tracking-widest`}>{stat.value}</div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                  {/* Export Options */}
+                  <div className="bg-neutral-950 border border-gold/20 p-8 space-y-6 lg:col-span-1">
+                    <div className="flex items-center gap-4 mb-4">
+                      <div className="w-12 h-12 rounded-full bg-gold/10 flex items-center justify-center text-gold">
+                        <Download size={24} />
+                      </div>
+                      <div>
+                        <h4 className="font-bebas text-2xl text-white tracking-widest">Local Records</h4>
+                        <p className="text-[10px] text-neutral-500 uppercase font-bold">Manual CSV Downloads</p>
+                      </div>
+                    </div>
+                    
+                    <button onClick={exportRosterToCSV} className="w-full flex justify-between items-center p-4 bg-white/5 border border-white/10 hover:border-gold/50 transition-all group">
+                      <span className="text-[10px] font-black text-white uppercase tracking-widest">Master Roster (19 Cols)</span>
+                      <div className="flex items-center gap-2 text-gold">
+                        <span className="text-[8px] font-bold">CSV</span>
+                        <ChevronRight size={14} className="group-hover:translate-x-1 transition-transform" />
+                      </div>
+                    </button>
+
+                    <button 
+                      onClick={testGoogleSheetsConnectivity}
+                      disabled={syncingSheets}
+                      className="w-full flex justify-between items-center p-4 bg-white/5 border border-white/10 hover:border-blue-500/50 transition-all group disabled:opacity-50"
+                    >
+                      <span className="text-[10px] font-black text-white uppercase tracking-widest">Ping Script Connectivity</span>
+                      <div className="flex items-center gap-2 text-blue-400">
+                        <Zap size={14} className="group-hover:scale-110 transition-transform" />
+                      </div>
+                    </button>
+                    
+                    <div className="p-4 bg-gold/5 border border-gold/10">
+                      <p className="text-[8px] text-gold font-bold uppercase leading-relaxed">
+                        Note: Sync calculations include Scrims + Tournaments + Open Room data.
+                      </p>
+                    </div>
+                  </div>
+            
+                  {/* Google Sheets Integration */}
+                  <div className="bg-neutral-950 border border-gold/20 p-8 space-y-6 lg:col-span-2">
+                    <div className="flex items-center gap-4 mb-4">
+                      <div className="w-12 h-12 rounded-full bg-green-500/10 flex items-center justify-center text-green-500">
+                        <FileSpreadsheet size={24} />
+                      </div>
+                      <div className="flex-1">
+                        <h4 className="font-bebas text-2xl text-white tracking-widest">Cloud Integration</h4>
+                        <p className="text-[10px] text-neutral-500 uppercase font-bold">Real-time Multi-Sheet Sync</p>
+                      </div>
+                      <div className="hidden sm:flex items-center gap-2">
+                         <span className={`w-2 h-2 rounded-full ${googleSheetsUrl ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`} />
+                         <span className="text-[8px] font-black uppercase text-neutral-500">{googleSheetsUrl ? 'Linked' : 'Offline'}</span>
+                      </div>
+                    </div>
+                    
+                    <div className="space-y-4">
+                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-blue-900/10 border border-blue-500/20 p-4 rounded-sm gap-3">
+                        <div className="flex items-center gap-3">
+                          <AlertCircle size={16} className="text-blue-400" />
+                          <div>
+                            <span className="block text-[9px] font-black text-blue-400 uppercase tracking-widest">Deployment Required</span>
+                            <span className="block text-[8px] text-blue-400/70 font-bold uppercase italic">Sync will not work without Web App URL</span>
+                          </div>
+                        </div>
+                        <button 
+                          onClick={() => setShowScriptHelp(!showScriptHelp)}
+                          className="w-full sm:w-auto text-[8px] font-black text-white bg-blue-600 px-4 py-2 uppercase tracking-widest hover:bg-white hover:text-black transition-all"
+                        >
+                          {showScriptHelp ? 'Hide Deployment Steps' : 'Setup Steps'}
+                        </button>
+                      </div>
+
+                      {showScriptHelp && (
+                        <div className="bg-black border border-white/10 p-5 space-y-6">
+                          <div className="space-y-4">
+                            <h5 className="text-[10px] text-gold font-black uppercase tracking-widest flex items-center gap-2">
+                              <span className="w-4 h-4 bg-gold text-black rounded-full flex items-center justify-center text-[8px] font-orbitron">1</span>
+                              Create Google Script
+                            </h5>
+                            <p className="text-[8px] text-neutral-400 font-bold uppercase leading-relaxed">
+                               Open <a href="https://script.google.com" target="_blank" rel="noreferrer" className="text-gold underline">script.google.com</a>, create a new project, and paste the code below.
+                            </p>
+                            
+                            <div className="relative group">
+                              <pre className="text-[9px] font-mono text-green-400 bg-neutral-900 border border-white/5 overflow-x-auto p-4 max-h-[150px] custom-scrollbar selection:bg-gold/30">
+{`function doPost(e) {
+  if (!e || !e.postData || !e.postData.contents) return ContentService.createTextOutput("Error: No data").setMimeType(ContentService.MimeType.TEXT);
+  try {
+    var data = JSON.parse(e.postData.contents);
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var timestamp = data.timestamp;
+    
+    data.roster.forEach(function(p) {
+      var divName = p.division || "General";
+      var sheet = ss.getSheetByName(divName) || ss.insertSheet(divName);
+      
+      if (sheet.getLastRow() === 0) {
+        sheet.appendRow(['Last Sync', 'Player Name', 'IGN', 'Division', 'Scrims Match', 'Scrims Kills', 'Tournament Matches', 'Tournament Kills', 'E-Kills', 'E-Match', 'M-Kills', 'M-Match', 'S-Kills', 'S-Match', 'V-Kills', 'V-Match', 'Total Kills', 'Total Matches', 'Status']);
+        sheet.getRange(1, 1, 1, 19).setFontWeight("bold").setBackground("#FFD700").setFontColor("#000000");
+      }
+      
+      // Find existing row by IGN (Column 3)
+      var values = sheet.getDataRange().getValues();
+      var rowIndex = -1;
+      for (var i = 1; i < values.length; i++) {
+        if (values[i][2] == p.ign) { rowIndex = i + 1; break; }
+      }
+      
+      var row = [timestamp, p.name, p.ign, divName, p.scrimsMatches, p.scrimsKills, p.tourneyMatches, p.tourneyKills, p.erangelKills, p.erangelMatches, p.miramarKills, p.miramarMatches, p.sanhokKills, p.sanhokMatches, p.vikendiKills, p.vikendiMatches, p.totalKills, p.totalMatches, p.status];
+      if (rowIndex > 0) sheet.getRange(rowIndex, 1, 1, 19).setValues([row]);
+      else sheet.appendRow(row);
+    });
+    return ContentService.createTextOutput("SUCCESS").setMimeType(ContentService.MimeType.TEXT);
+  } catch (err) {
+    return ContentService.createTextOutput("ERROR: " + err.message).setMimeType(ContentService.MimeType.TEXT);
+  }
+}`}
+                              </pre>
+                              <button 
+                                onClick={() => {
+                                  const code = `function doGet(e) {
+  return ContentService.createTextOutput("CONNECTION SUCCESSFUL: Script is active and listening.").setMimeType(ContentService.MimeType.TEXT);
+}
+
+function doPost(e) {
+  if (!e || !e.postData || !e.postData.contents) return ContentService.createTextOutput("Error: No data").setMimeType(ContentService.MimeType.TEXT);
+  try {
+    var data = JSON.parse(e.postData.contents);
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var timestamp = data.timestamp;
+    data.roster.forEach(function(p) {
+      var divName = p.division || "General";
+      var sheet = ss.getSheetByName(divName) || ss.insertSheet(divName);
+      if (sheet.getLastRow() === 0) {
+        sheet.appendRow(['Last Sync', 'Player Name', 'IGN', 'Division', 'Scrims Match', 'Scrims Kills', 'Tournament Matches', 'Tournament Kills', 'E-Kills', 'E-Match', 'M-Kills', 'M-Match', 'S-Kills', 'S-Match', 'V-Kills', 'V-Match', 'Total Kills', 'Total Matches', 'Status']);
+        sheet.getRange(1, 1, 1, 19).setFontWeight("bold").setBackground("#FFD700").setFontColor("#000000");
+      }
+      var values = sheet.getDataRange().getValues();
+      var rowIndex = -1;
+      for (var i = 1; i < values.length; i++) {
+        if (values[i][2] == p.ign) { rowIndex = i + 1; break; }
+      }
+      var row = [timestamp, p.name, p.ign, divName, p.scrimsMatches, p.scrimsKills, p.tourneyMatches, p.tourneyKills, p.erangelKills, p.erangelMatches, p.miramarKills, p.miramarMatches, p.sanhokKills, p.sanhokMatches, p.vikendiKills, p.vikendiMatches, p.totalKills, p.totalMatches, p.status];
+      if (rowIndex > 0) sheet.getRange(rowIndex, 1, 1, 19).setValues([row]);
+      else sheet.appendRow(row);
+    });
+    return ContentService.createTextOutput("SUCCESS").setMimeType(ContentService.MimeType.TEXT);
+  } catch (err) {
+    return ContentService.createTextOutput("ERROR: " + err.message).setMimeType(ContentService.MimeType.TEXT);
+  }
+}`;
+                                  navigator.clipboard.writeText(code);
+                                  onToast('Copied', 'Advanced Update Script copied');
+                                }}
+                                className="absolute top-2 right-2 bg-neutral-800 text-neutral-400 p-2 hover:text-white transition-colors"
+                              >
+                                <Copy size={12} />
+                              </button>
+                            </div>
+                          </div>
+
+                          <div className="space-y-4">
+                            <h5 className="text-[10px] text-gold font-black uppercase tracking-widest flex items-center gap-2">
+                              <span className="w-4 h-4 bg-gold text-black rounded-full flex items-center justify-center text-[8px] font-orbitron">2</span>
+                              Deploy (CRITICAL)
+                            </h5>
+                            <ul className="space-y-2">
+                               <li className="text-[8px] text-neutral-400 font-bold uppercase flex items-start gap-2">
+                                  <span className="text-gold">•</span> Click "Deploy" &gt; "New Deployment"
+                               </li>
+                               <li className="text-[8px] text-neutral-400 font-bold uppercase flex items-start gap-2">
+                                  <span className="text-gold">•</span> Select Type: "Web App"
+                               </li>
+                               <li className="text-[8px] text-neutral-400 font-bold uppercase flex items-start gap-2 text-white">
+                                  <span className="text-gold">•</span> Who has access: "Anyone" (Do not pick 'Only Myself')
+                               </li>
+                            </ul>
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="space-y-2">
+                        <label className="text-[8px] font-black text-neutral-500 uppercase tracking-widest">Web App Execution URL</label>
+                        <div className="relative">
+                          <input 
+                            type="url" 
+                            value={googleSheetsUrl} 
+                            onChange={(e) => saveSheetsUrl(e.target.value)}
+                            placeholder="https://script.google.com/macros/s/.../exec"
+                            className={`w-full bg-black border p-3 text-[10px] text-white outline-none transition-all ${googleSheetsUrl ? 'border-green-500/30 focus:border-green-500' : 'border-white/10 focus:border-gold'}`}
+                          />
+                          {googleSheetsUrl && (
+                            <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                               <span className="text-[7px] font-black text-green-500 uppercase tracking-widest bg-green-500/10 px-2 py-0.5 rounded-xs">VALID FORMAT</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <button 
+                      onClick={performGoogleSheetsSync}
+                      disabled={syncingSheets || !googleSheetsUrl}
+                      className={`w-full py-4 text-[10px] font-black uppercase tracking-[0.2em] transition-all flex items-center justify-center gap-2 ${
+                        syncingSheets || !googleSheetsUrl ? 'bg-neutral-800 text-neutral-600' : 'bg-green-600 text-white hover:bg-white hover:text-black'
+                      }`}
+                    >
+                      {syncingSheets ? <Loader2 className="animate-spin" size={14} /> : <Play size={14} />}
+                      {syncingSheets ? 'Transmitting Data...' : 'Push Deployment Update'}
+                    </button>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="bg-white/5 border border-white/10 p-4 rounded-sm space-y-3">
+                        <div className="flex justify-between items-center pb-2 border-b border-white/5">
+                          <span className="text-[8px] font-black text-neutral-500 uppercase tracking-widest">Connection Mode</span>
+                          <span className="text-[8px] font-black text-gold uppercase tracking-widest">Opaque Pipeline</span>
+                        </div>
+                        <div className="flex justify-between items-center pb-2 border-b border-white/5">
+                          <span className="text-[8px] font-black text-neutral-500 uppercase tracking-widest">Data Readiness</span>
+                          <span className="text-[8px] font-black text-white uppercase tracking-widest">{squad.length} Player Records</span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-[8px] font-black text-neutral-500 uppercase tracking-widest">Sync Status</span>
+                          <span className="text-[8px] font-black text-green-500 uppercase tracking-widest">{lastSyncResult}</span>
+                        </div>
+                      </div>
+
+                    <div className="bg-yellow-500/5 border border-yellow-500/10 p-4 rounded-sm">
+                        <h5 className="text-[8px] font-black text-yellow-500 uppercase tracking-widest mb-2 flex items-center gap-2">
+                          <AlertCircle size={10} /> Why am I not seeing data?
+                        </h5>
+                        <div className="space-y-3">
+                          <p className="text-[7px] text-neutral-400 font-bold uppercase leading-relaxed">
+                            "Broadcast Sent" means the data left this app. If the sheet is empty, check these 3 things:
+                          </p>
+                          <ul className="space-y-2">
+                            <li className="flex flex-col gap-1">
+                              <span className="text-[8px] text-white font-black uppercase tracking-widest">1. Deployment Access</span>
+                              <span className="text-[7px] text-neutral-500 font-medium leading-tight">In Google Script: Click "Deploy" then "New Deployment". Ensure 'Who has access' is set to <span className="text-gold">"ANYONE"</span>.</span>
+                            </li>
+                            <li className="flex flex-col gap-1">
+                              <span className="text-[8px] text-white font-black uppercase tracking-widest">2. Execution URL</span>
+                              <span className="text-[7px] text-neutral-500 font-medium leading-tight">Ensure your URL ends in <span className="text-gold">/exec</span>. If it ends in /edit, it will not work.</span>
+                            </li>
+                            <li className="flex flex-col gap-1">
+                              <span className="text-[8px] text-white font-black uppercase tracking-widest">3. Authorize Script</span>
+                              <span className="text-[7px] text-neutral-500 font-medium leading-tight">In the script editor, you may need to click 'Run' once manually to grant permissions to access your Spreadsheet.</span>
+                            </li>
+                          </ul>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             )}
@@ -4259,11 +5179,20 @@ const AdminDashboard = ({ onToast, adminRole, user }: { onToast: (t: string, m: 
                         <select 
                           required
                           value={matchStatForm.playerId}
-                          onChange={e => setMatchStatForm({...matchStatForm, playerId: e.target.value})}
+                          onChange={e => {
+                            const pId = e.target.value;
+                            const p = squad.find(s => s.id === pId);
+                            setMatchStatForm({
+                              ...matchStatForm, 
+                              playerId: pId,
+                              game: p?.game || matchStatForm.game,
+                              map: ''
+                            });
+                          }}
                           className="w-full bg-black/60 border border-white/10 p-4 text-sm text-white focus:border-gold outline-none h-14 appearance-none"
                         >
                           <option value="">Choose a Squad Member...</option>
-                          {squad.map(s => <option key={s.id} value={s.id}>{s.ign} ({s.role})</option>)}
+                          {squad.map(s => <option key={s.id} value={s.id}>{s.ign} ({s.game} • {s.role})</option>)}
                         </select>
                       </div>
 
@@ -4280,7 +5209,7 @@ const AdminDashboard = ({ onToast, adminRole, user }: { onToast: (t: string, m: 
                               matchStatForm.matchType === 'scrim' ? 'bg-gold text-black border-gold' : 'bg-black/40 text-neutral-500 border-white/10 hover:border-gold/30'
                             }`}
                           >
-                            Scrim Engagement
+                            Scrim
                           </button>
                           <button 
                             type="button"
@@ -4289,7 +5218,7 @@ const AdminDashboard = ({ onToast, adminRole, user }: { onToast: (t: string, m: 
                               matchStatForm.matchType === 'tournament' ? 'bg-gold text-black border-gold' : 'bg-black/40 text-neutral-500 border-white/10 hover:border-gold/30'
                             }`}
                           >
-                            Official Tournament
+                            Tourney
                           </button>
                           <button 
                             type="button"
@@ -4302,6 +5231,32 @@ const AdminDashboard = ({ onToast, adminRole, user }: { onToast: (t: string, m: 
                           </button>
                         </div>
                       </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                       <div className="space-y-4">
+                          <label className="text-[10px] font-black text-neutral-500 uppercase tracking-widest block">Game Architecture</label>
+                          <select 
+                            value={matchStatForm.game}
+                            onChange={e => setMatchStatForm({...matchStatForm, game: e.target.value, map: ''})}
+                            className="w-full bg-black/60 border border-white/10 p-4 text-sm text-white focus:border-gold outline-none h-14 appearance-none"
+                          >
+                            {Object.keys(GAME_DATA).map(g => <option key={g} value={g}>{g}</option>)}
+                          </select>
+                       </div>
+                       <div className="space-y-4">
+                          <label className="text-[10px] font-black text-neutral-500 uppercase tracking-widest block">Deployment Zone (Map)</label>
+                          <select 
+                            value={matchStatForm.map}
+                            onChange={e => setMatchStatForm({...matchStatForm, map: e.target.value})}
+                            className="w-full bg-black/60 border border-white/10 p-4 text-sm text-white focus:border-gold outline-none h-14 appearance-none"
+                          >
+                            <option value="">Select Map...</option>
+                            {GAME_DATA[matchStatForm.game as keyof typeof GAME_DATA]?.maps.map(m => (
+                              <option key={m} value={m}>{m}</option>
+                            ))}
+                          </select>
+                       </div>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-end">
@@ -4554,13 +5509,25 @@ const AdminDashboard = ({ onToast, adminRole, user }: { onToast: (t: string, m: 
                         <label className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest italic opacity-60">Game Architecture</label>
                         <select 
                           value={tournamentForm.game}
-                          onChange={(e) => setTournamentForm({...tournamentForm, game: e.target.value})}
+                          onChange={(e) => setTournamentForm({...tournamentForm, game: e.target.value, map: ''})}
                           className="w-full bg-black/40 border border-white/10 p-3 text-sm text-white focus:border-gold outline-none appearance-none font-bold"
                         >
-                          <option>BGMI</option>
-                          <option>Free Fire</option>
-                          <option>Valorant</option>
-                          <option>CODM</option>
+                          {Object.keys(GAME_DATA).map(g => (
+                            <option key={g} value={g}>{g}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest italic opacity-60">Operations Theater (Map)</label>
+                        <select 
+                          value={tournamentForm.map}
+                          onChange={(e) => setTournamentForm({...tournamentForm, map: e.target.value})}
+                          className="w-full bg-black/40 border border-white/10 p-3 text-sm text-white focus:border-gold outline-none appearance-none font-bold"
+                        >
+                          <option value="">Select Map...</option>
+                          {GAME_DATA[tournamentForm.game as keyof typeof GAME_DATA]?.maps.map(m => (
+                            <option key={m} value={m}>{m}</option>
+                          ))}
                         </select>
                       </div>
                       <div className="space-y-1">
@@ -4678,7 +5645,7 @@ const AdminDashboard = ({ onToast, adminRole, user }: { onToast: (t: string, m: 
                                t.status === 'upcoming' ? 'bg-blue-500' :
                                'bg-neutral-600'
                              }`} />
-                             <span className="text-gold text-[10px] font-bold tracking-[0.2em] uppercase">{t.game}</span>
+                             <span className="text-gold text-[10px] font-bold tracking-[0.2em] uppercase">{t.game} {t.map && <span className="opacity-50 ml-1">• {t.map}</span>}</span>
                           </div>
                           <span className={`text-[8px] font-black uppercase tracking-widest px-2 py-0.5 border rounded-[2px] ${
                             t.status === 'open' ? 'bg-green-500/10 text-green-500 border-green-500/20' :
@@ -5204,12 +6171,48 @@ const AdminDashboard = ({ onToast, adminRole, user }: { onToast: (t: string, m: 
                       </div>
                    </div>
 
+                   <div className="h-px bg-white/5" />
+
+                   <div className="space-y-6">
+                      <div className="text-[10px] font-black text-gold uppercase tracking-[0.3em]">Organization Statistics</div>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div className="space-y-2">
+                          <label className="text-[9px] font-bold text-neutral-500 uppercase tracking-widest">Founded Year</label>
+                          <input 
+                            type="number"
+                            value={orgStatsForm.foundedYear}
+                            onChange={(e) => setOrgStatsForm({...orgStatsForm, foundedYear: parseInt(e.target.value) || 0})}
+                            className="w-full bg-black/40 border border-white/10 p-3 text-sm text-white focus:border-gold outline-none font-mono"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-[9px] font-bold text-neutral-500 uppercase tracking-widest">Total Divisions</label>
+                          <input 
+                            type="number"
+                            value={orgStatsForm.divisionCount}
+                            onChange={(e) => setOrgStatsForm({...orgStatsForm, divisionCount: parseInt(e.target.value) || 0})}
+                            className="w-full bg-black/40 border border-white/10 p-3 text-sm text-white focus:border-gold outline-none font-mono"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-[9px] font-bold text-neutral-500 uppercase tracking-widest">Pro Roster Count</label>
+                          <input 
+                            type="number"
+                            value={orgStatsForm.proRosterCount}
+                            onChange={(e) => setOrgStatsForm({...orgStatsForm, proRosterCount: parseInt(e.target.value) || 0})}
+                            className="w-full bg-black/40 border border-white/10 p-3 text-sm text-white focus:border-gold outline-none font-mono"
+                          />
+                        </div>
+                      </div>
+                   </div>
+
                    <button 
                      disabled={isSavingSettings}
                      onClick={saveSettings}
                      className="w-full bg-gold text-black py-4 font-black uppercase text-xs tracking-[0.2em] hover:bg-white transition-all disabled:opacity-50"
                    >
-                     {isSavingSettings ? 'Synchronizing Intelligence...' : 'Update Global Social Links'}
+                     {isSavingSettings ? 'Synchronizing Intelligence...' : 'Update Global Profile & Stats'}
                    </button>
                 </div>
               </div>
@@ -5277,14 +6280,13 @@ const RankingPage = () => {
         </div>
       ) : (
         <div className="max-w-5xl mx-auto space-y-4">
-          <div className="grid grid-cols-12 px-6 py-4 text-[10px] font-black text-neutral-500 uppercase tracking-widest border-b border-white/5">
+          <div className="hidden md:grid grid-cols-12 px-6 py-4 text-[10px] font-black text-neutral-500 uppercase tracking-widest border-b border-white/5">
              <div className="col-span-1">Rank</div>
-             <div className="col-span-3 lg:col-span-3">Operative</div>
-             <div className="col-span-1 text-center hidden md:block">Sector</div>
-             <div className="col-span-1 text-center font-mono">Scrims K/M</div>
-             <div className="col-span-1 text-center font-mono">Tourney K/M</div>
-             <div className="col-span-1 text-center font-mono">Open Room K/M</div>
-             <div className="col-span-2 text-center font-mono">Total Kills/Matches</div>
+             <div className="col-span-4">Operative</div>
+             <div className="col-span-1 text-center font-mono">Scrims</div>
+             <div className="col-span-1 text-center font-mono">Tourney</div>
+             <div className="col-span-1 text-center font-mono">Open</div>
+             <div className="col-span-2 text-center font-mono">Total Stats</div>
              <div className="col-span-2 text-right">Combat Score</div>
           </div>
 
@@ -5294,24 +6296,25 @@ const RankingPage = () => {
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.05 }}
-              className={`grid grid-cols-12 items-center px-6 py-6 border border-white/5 group hover:border-gold/30 transition-all relative overflow-hidden ${
+              className={`flex flex-col md:grid md:grid-cols-12 items-center px-4 md:px-6 py-4 md:py-6 border border-white/5 group hover:border-gold/30 transition-all relative overflow-hidden ${
                 index === 0 ? 'bg-gold/5 border-gold/20' : 'bg-neutral-900/50'
               }`}
             >
-              <div className="col-span-1 font-orbitron font-black text-2xl">
+              {/* Rank Badge - Floating on mobile */}
+              <div className="absolute top-2 left-2 md:relative md:top-0 md:left-0 md:col-span-1 font-orbitron font-black text-xl md:text-2xl z-10">
                  <span className={index < 3 ? 'text-gold' : 'text-neutral-700'}>
                    #{index + 1}
                  </span>
               </div>
 
-              <div className="col-span-3 lg:col-span-3 flex items-center gap-4">
-                 <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bebas text-xl border hidden sm:flex ${
+              <div className="w-full md:col-span-4 flex items-center gap-4 mb-4 md:mb-0">
+                 <div className={`w-12 h-12 md:w-10 md:h-10 rounded-full flex items-center justify-center font-bebas text-2xl md:text-xl border ${
                    index === 0 ? 'bg-gold text-black border-gold' : 'bg-neutral-800 text-gold border-white/5'
                  }`}>
                    {player.ign.charAt(0)}
                  </div>
-                 <div>
-                    <div className="font-bebas text-xl text-white tracking-widest flex items-center gap-2">
+                 <div className="flex-1">
+                    <div className="font-bebas text-2xl md:text-xl text-white tracking-widest flex items-center gap-2">
                       {player.ign}
                       {player.status && player.status !== 'Active' && (
                         <span className={`text-[7px] px-1.5 py-0.5 border font-black uppercase tracking-tighter ${
@@ -5321,55 +6324,56 @@ const RankingPage = () => {
                         </span>
                       )}
                     </div>
-                    <div className="text-[10px] text-neutral-500 font-bold uppercase tracking-tighter">{player.role}</div>
+                    <div className="flex items-center gap-2">
+                       <div className="text-[10px] text-neutral-500 font-bold uppercase tracking-tighter">{player.role}</div>
+                       <span className="md:hidden text-[8px] font-black text-gold/80 uppercase tracking-widest bg-white/5 px-2 py-0.5 rounded-[2px] border border-white/5">
+                         {DIVISIONS[player.div]?.name || 'N/A'}
+                       </span>
+                    </div>
                  </div>
               </div>
 
-              <div className="col-span-1 text-center hidden md:block">
-                 <span className="text-[8px] font-black text-gold/80 uppercase tracking-widest bg-white/5 px-2 py-0.5 rounded-[2px] border border-white/5">
-                   {DIVISIONS[player.div]?.name || 'N/A'}
-                 </span>
-              </div>
+              {/* Stats Grid - Responsive behavior */}
+              <div className="w-full grid grid-cols-4 md:contents gap-2 pt-4 md:pt-0 border-t border-white/5 md:border-t-0">
+                <div className="md:hidden col-span-1 h-px" /> {/* Offset for Rank in table mode if needed, but here we just use cols */}
+                
+                <div className="md:col-span-1 text-center md:hidden lg:block">
+                   <span className="hidden md:inline-block text-[8px] font-black text-gold/80 uppercase tracking-widest bg-white/5 px-2 py-0.5 rounded-[2px] border border-white/5">
+                     {DIVISIONS[player.div]?.name || 'N/A'}
+                   </span>
+                </div>
 
-              <div className="col-span-1 text-center">
-                 <div className="text-[10px] text-white font-mono">{player.scrimsKills || 0}/{player.scrimsMatches || 0}</div>
-                 <div className="text-[7px] text-neutral-600 font-black uppercase">Scrims</div>
-              </div>
+                <div className="md:col-span-1 text-center">
+                   <div className="text-[12px] md:text-[10px] text-white font-mono">{player.scrimsKills || 0}/{player.scrimsMatches || 0}</div>
+                   <div className="text-[7px] text-neutral-600 font-black uppercase">Scrims</div>
+                </div>
 
-              <div className="col-span-1 text-center">
-                 <div className="text-[10px] text-white font-mono">{player.tourneyKills || 0}/{player.tourneyMatches || 0}</div>
-                 <div className="text-[7px] text-neutral-600 font-black uppercase">Tourney</div>
-              </div>
+                <div className="md:col-span-1 text-center">
+                   <div className="text-[12px] md:text-[10px] text-white font-mono">{player.tourneyKills || 0}/{player.tourneyMatches || 0}</div>
+                   <div className="text-[7px] text-neutral-600 font-black uppercase">Tourney</div>
+                </div>
 
-              <div className="col-span-1 text-center">
-                 <div className="text-[10px] text-white font-mono">{player.openRoomKills || 0}/{player.openRoomMatches || 0}</div>
-                 <div className="text-[7px] text-neutral-600 font-black uppercase">Open</div>
-              </div>
+                <div className="md:col-span-1 text-center">
+                   <div className="text-[12px] md:text-[10px] text-white font-mono">{player.openRoomKills || 0}/{player.openRoomMatches || 0}</div>
+                   <div className="text-[7px] text-neutral-600 font-black uppercase">Open</div>
+                </div>
 
-              <div className="col-span-2 text-center flex flex-col items-center">
-                 <div className="font-orbitron font-bold text-white flex items-center gap-2">
-                    {player.kills}/{player.matches}
-                    {player.kdHistory && player.kdHistory.length > 1 && (
-                      <span className={player.kdHistory[player.kdHistory.length - 1] >= player.kdHistory[player.kdHistory.length - 2] ? 'text-green-500' : 'text-red-500'}>
-                        {player.kdHistory[player.kdHistory.length - 1] >= player.kdHistory[player.kdHistory.length - 2] ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
-                      </span>
-                    )}
-                 </div>
-                 <div className="text-[8px] font-bold text-neutral-500">KD: {player.kd}</div>
-                 <div className="h-4 w-full mt-1 hidden lg:block">
-                    {player.kdHistory && player.kdHistory.length > 0 && (
-                      <ResponsiveContainer width="100%" height="100%">
-                        <LineChart data={player.kdHistory.map((val, i) => ({ val, i }))}>
-                          <Line type="monotone" dataKey="val" stroke={index === 0 ? "#000" : "#FFD700"} strokeWidth={1} dot={false} />
-                        </LineChart>
-                      </ResponsiveContainer>
-                    )}
-                 </div>
-              </div>
+                <div className="col-span-2 md:col-span-2 text-center flex flex-col items-center pt-2 md:pt-0">
+                   <div className="font-orbitron font-bold text-white flex items-center gap-2 text-sm md:text-base">
+                      {player.kills}/{player.matches}
+                      {player.kdHistory && player.kdHistory.length > 1 && (
+                        <span className={player.kdHistory[player.kdHistory.length - 1] >= player.kdHistory[player.kdHistory.length - 2] ? 'text-green-500' : 'text-red-500'}>
+                          {player.kdHistory[player.kdHistory.length - 1] >= player.kdHistory[player.kdHistory.length - 2] ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
+                        </span>
+                      )}
+                   </div>
+                   <div className="text-[8px] font-bold text-neutral-500">KD: {player.kd}</div>
+                </div>
 
-              <div className="col-span-2 text-right">
-                 <div className="font-orbitron font-black text-xl text-gold">{Math.floor(player.score).toLocaleString()}</div>
-                 <div className="text-[8px] text-neutral-600 font-black uppercase tracking-widest">Efficiency Rating</div>
+                <div className="col-span-2 md:col-span-2 text-right pt-2 md:pt-0">
+                   <div className="font-orbitron font-black text-2xl md:text-xl text-gold">{Math.floor(player.score).toLocaleString()}</div>
+                   <div className="text-[8px] text-neutral-600 font-black uppercase tracking-widest">Efficiency</div>
+                </div>
               </div>
             </motion.div>
           ))}
@@ -5687,6 +6691,7 @@ export default function App() {
   const [currentPage, setCurrentPage] = useState<Page>('home');
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [selectedTournament, setSelectedTournament] = useState<Tournament | null>(null);
+  const [orgStats, setOrgStats] = useState({ divisionCount: 5, proRosterCount: 40, foundedYear: 2019 });
 
   const navigate = (page: Page, data?: any) => {
     if (data) setSelectedTournament(data);
@@ -5707,7 +6712,19 @@ export default function App() {
         setCurrentPage('registration');
       }
     });
-    return () => unsubscribe();
+    
+    const unsubStats = onSnapshot(doc(db, 'site_config', 'org_stats'), (docSnap) => {
+      if (docSnap.exists()) {
+        setOrgStats(docSnap.data() as any);
+      }
+    }, (error) => {
+      reportFirestoreError(error, 'get', 'site_config/org_stats', (t, m) => console.error(t, m));
+    });
+
+    return () => {
+      unsubscribe();
+      unsubStats();
+    };
   }, [currentPage, selectedTournament]);
 
   useEffect(() => {
@@ -5909,9 +6926,16 @@ export default function App() {
             {currentPage === 'roster' && <RosterPage onToast={showToast} />}
             {currentPage === 'recruitment' && <RecruitmentPage onToast={showToast} user={user} />}
             {currentPage === 'management' && <ManagementPage isAdmin={isAdmin} onNavigate={setCurrentPage} />}
-            {currentPage === 'about' && <AboutPage />}
+            {currentPage === 'about' && <AboutPage stats={orgStats} />}
             {currentPage === 'signin' && <SignInPage onToast={showToast} user={user} isAdmin={isAdmin} onNavigate={setCurrentPage} />}
-            {currentPage === 'admin' && isAdmin && <AdminDashboard onToast={showToast} adminRole={adminRole} user={user} />}
+            {currentPage === 'admin' && isAdmin && (
+              <AdminDashboard 
+                onToast={showToast} 
+                adminRole={adminRole} 
+                user={user} 
+                orgStatsProp={orgStats} 
+              />
+            )}
           </motion.div>
         </AnimatePresence>
       </main>

@@ -55,19 +55,24 @@ service cloud.firestore {
     }
 
     function isValidApplication(data) {
-      return data.keys().hasAll(['uid', 'ign', 'game', 'fullName', 'createdAt', 'status']) &&
+      return data.keys().hasAll(['uid', 'ign', 'game', 'fullName', 'name', 'createdAt', 'status']) &&
              data.uid == request.auth.uid &&
              data.status == 'pending' &&
              data.createdAt == request.time &&
              data.fullName is string && data.fullName.size() <= 128 &&
+             data.name is string && data.name.size() <= 128 &&
              data.ign is string && data.ign.size() <= 64 &&
-             data.game is string && data.game.size() <= 64;
+             data.game is string && data.game.size() <= 64 &&
+             (data.get('valorantId', '') is string && data.get('valorantId', '').size() <= 128) &&
+             (data.get('mainAgent', '') is string && data.get('mainAgent', '').size() <= 64) &&
+             (data.get('device', '') is string && data.get('device', '').size() <= 128);
     }
 
     function isValidTournament(data) {
       return data.keys().hasAll(['name', 'game', 'slots', 'total', 'status']) &&
              data.name is string && data.name.size() <= 200 &&
              data.game is string && data.game.size() <= 100 &&
+             (data.get('map', '') is string && data.get('map', '').size() <= 100) &&
              data.slots is int && data.total is int &&
              data.status in ['upcoming', 'open', 'closed', 'ongoing', 'finished'];
     }

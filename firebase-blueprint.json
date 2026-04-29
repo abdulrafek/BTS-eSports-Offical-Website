@@ -24,9 +24,13 @@
       "type": "object",
       "properties": {
         "fullName": { "type": "string" },
+        "name": { "type": "string", "description": "Candidate's legal name" },
         "ign": { "type": "string" },
         "uid": { "type": "string" },
         "gameUid": { "type": "string" },
+        "valorantId": { "type": "string", "description": "Valorant-specific game ID (e.g. Tag#1234)" },
+        "mainAgent": { "type": "string", "description": "Preferred Valorant agent" },
+        "device": { "type": "string", "description": "Mobile device model for BGMI" },
         "age": { "type": "integer" },
         "whatsapp": { "type": "string" },
         "location": { "type": "string" },
@@ -41,7 +45,7 @@
         "status": { "type": "string", "enum": ["pending", "reviewed", "accepted", "rejected"] },
         "createdAt": { "type": "string", "format": "date-time" }
       },
-      "required": ["uid", "ign", "game", "fullName"]
+      "required": ["uid", "ign", "game", "fullName", "name"]
     },
     "Tournament": {
       "title": "Tournament",
@@ -54,6 +58,7 @@
         "slots": { "type": "integer" },
         "total": { "type": "integer" },
         "date": { "type": "string" },
+        "map": { "type": "string" },
         "status": { "type": "string", "enum": ["open", "closed", "finished"] },
         "createdBy": { "type": "string" },
         "createdAt": { "type": "string", "format": "date-time" }
@@ -258,6 +263,9 @@
         "title": { "type": "string" },
         "youtube": { "type": "string" },
         "instagram": { "type": "string" },
+        "divisionCount": { "type": "integer" },
+        "proRosterCount": { "type": "integer" },
+        "foundedYear": { "type": "integer" },
         "updatedAt": { "type": "string", "format": "date-time" }
       }
     }

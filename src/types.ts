@@ -18,6 +18,14 @@ export interface Player {
   youtube?: string;
   discord?: string;
   game?: string;
+  mapStats?: {
+    [key: string]: {
+      kills: number;
+      matches: number;
+      top1: number;
+      avgRank: number;
+    }
+  };
 }
 
 export interface Achievement {
@@ -52,6 +60,7 @@ export interface Tournament {
   total: number;
   status: TournamentStatus;
   date: string;
+  map?: string;
   imageUrl?: string;
   discordLink?: string;
   instagramLink?: string;

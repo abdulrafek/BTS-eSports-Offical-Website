@@ -45,7 +45,11 @@ import {
   Play,
   ExternalLink,
   Lock,
-  Loader2
+  Loader2,
+  PenTool,
+  Facebook,
+  Twitter,
+  Send
 } from 'lucide-react';
 import { Page, Tournament, Player, RankingPlayer } from './types';
 import { PLAYERS, DIVISIONS, TOURNAMENTS, GAME_DATA } from './constants';
@@ -164,7 +168,7 @@ const SectionHeader = ({ tag, title, sub, goldSpan, className = "text-center mb-
 
 // --- Pages ---
 
-const Home = ({ onNavigate, onToast, userRole, isAdmin, user }: { onNavigate: (p: Page) => void, onToast: (t: string, m: string) => void, userRole?: string, isAdmin?: boolean, user?: User | null }) => {
+const Home = ({ onNavigate, onToast, userRole, isAdmin, user, branding }: { onNavigate: (p: Page) => void, onToast: (t: string, m: string) => void, userRole?: string, isAdmin?: boolean, user?: User | null, branding: any }) => {
   const [dbTournaments, setDbTournaments] = useState<any[]>([]);
   const [dbHighlights, setDbHighlights] = useState<any[]>([]);
   const [liveConfig, setLiveConfig] = useState<{ isLive: boolean, videoId: string, title: string } | null>(null);
@@ -192,9 +196,9 @@ const Home = ({ onNavigate, onToast, userRole, isAdmin, user }: { onNavigate: (p
 
     return [
       {
-        tag: "🔥 India's Premier eSports Organization",
-        title: ["Rise.", "Dominate.", "Conquer."],
-        desc: "BTS eSports is building the next generation of competitive gaming talent in India. Join us and compete at the highest level.",
+        tag: branding.tagLine || "🔥 India's Premier eSports Organization",
+        title: [branding.orgName.split(' ')[0] || "Rise.", branding.orgName.split(' ')[1] || "Dominate.", branding.orgName.split(' ')[2] || "Conquer."],
+        desc: `${branding.orgName} is building the next generation of competitive gaming talent. Join us and compete at the highest level.`,
         btn1: "Join Now",
         btn2: "Tournaments",
         nav1: "recruitment",
@@ -908,7 +912,8 @@ const getSafeImageUrl = (url: string) => {
   if (trimmed.includes('drive.google.com')) {
     const idMatch = trimmed.match(/\/d\/(.+?)(\/|$)/) || trimmed.match(/id=(.+?)(&|$)/);
     if (idMatch && idMatch[1]) {
-      return `https://docs.google.com/uc?export=view&id=${idMatch[1]}`;
+      // Priority: use lh3.googleusercontent.com/d/ID which is more reliable for embedding
+      return `https://lh3.googleusercontent.com/d/${idMatch[1]}`;
     }
   }
   return trimmed;
@@ -947,26 +952,32 @@ const RosterPage = ({ onToast }: { onToast: (t: string, m: string) => void }) =>
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let unsubPlayers: () => void;
+    let unsubDivs: () => void;
+    let unsubAchs: () => void;
+
     const fetchTeamData = async () => {
+      setLoading(true);
       try {
-        const qPlayers = query(collection(db, 'squad'), orderBy('createdAt', 'desc'));
-        const qDivs = query(collection(db, 'divisions'), orderBy('name'));
-        const qAchs = query(collection(db, 'achievements'), orderBy('date', 'desc'), limit(8));
-        
-        const [playersSnap, divsSnap, achSnap, sSnap] = await Promise.all([
-          getDocs(qPlayers),
-          getDocs(qDivs),
-          getDocs(qAchs),
-          getDoc(doc(db, 'site_config', 'social'))
-        ]);
-        
-        setDbPlayers(playersSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-        setDbDivisions(divsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-        setDbAchievements(achSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-        
+        // We still fetch once for social and maybe initial load,
+        // but we switch to snapshots for the core data.
+        const sSnap = await getDoc(doc(db, 'site_config', 'social'));
         if (sSnap.exists()) {
           setSocialLinks(sSnap.data() as any);
         }
+
+        unsubPlayers = onSnapshot(query(collection(db, 'squad'), orderBy('createdAt', 'desc')), (snap) => {
+          setDbPlayers(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        }, (err) => firebaseErrorHandler(err, 'get', 'squad'));
+
+        unsubDivs = onSnapshot(query(collection(db, 'divisions'), orderBy('name')), (snap) => {
+          setDbDivisions(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        }, (err) => firebaseErrorHandler(err, 'get', 'divisions'));
+
+        unsubAchs = onSnapshot(query(collection(db, 'achievements'), orderBy('date', 'desc'), limit(8)), (snap) => {
+          setDbAchievements(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        }, (err) => firebaseErrorHandler(err, 'get', 'achievements'));
+
       } catch (error) {
         console.error(error);
       } finally {
@@ -974,6 +985,12 @@ const RosterPage = ({ onToast }: { onToast: (t: string, m: string) => void }) =>
       }
     };
     fetchTeamData();
+
+    return () => {
+      unsubPlayers?.();
+      unsubDivs?.();
+      unsubAchs?.();
+    };
   }, []);
 
   const displayPlayers = useMemo(() => {
@@ -1152,11 +1169,13 @@ const RosterPage = ({ onToast }: { onToast: (t: string, m: string) => void }) =>
                             </div>
                             <div className="bg-gold/5 p-3 rounded-[2px] border border-gold/10">
                               <div className="text-[7px] text-gold uppercase font-black mb-1">TOTAL KILLS</div>
-                              <div className="text-xl font-bebas text-gold tracking-widest">{(p.scrimsKills || 0) + (p.tourneyKills || 0)}</div>
+                              <div className="text-xl font-bebas text-gold tracking-widest">{(p.scrimsKills || 0) + (p.tourneyKills || 0) + (p.openRoomKills || 0)}</div>
                             </div>
                             <div className="bg-gold/5 p-3 rounded-[2px] border border-gold/10">
                               <div className="text-[7px] text-gold uppercase font-black mb-1">K/D RATIO</div>
-                              <div className="text-xl font-bebas text-gold tracking-widest">{p.kd || '0.00'}</div>
+                              <div className="text-xl font-bebas text-gold tracking-widest">
+                                {(((p.scrimsKills || 0) + (p.tourneyKills || 0) + (p.openRoomKills || 0)) / Math.max(1, (p.scrimsMatches || 0) + (p.tourneyMatches || 0) + (p.openRoomMatches || 0))).toFixed(2)}
+                              </div>
                             </div>
                           </div>
                         )}
@@ -1362,8 +1381,21 @@ const RosterPage = ({ onToast }: { onToast: (t: string, m: string) => void }) =>
                             <span className="text-[7px] text-neutral-500 uppercase font-bold tracking-widest">Matches</span>
                           </div>
                           <div className="bg-gold/10 border border-gold/20 p-2 rounded-sm text-center">
-                            <span className="block font-orbitron font-black text-gold text-sm leading-none mb-1">{(p.scrimsKills || 0) + (p.tourneyKills || 0)}</span>
+                            <span className="block font-orbitron font-black text-gold text-sm leading-none mb-1">{(p.kills || 0).toLocaleString()}</span>
                             <span className="text-[7px] text-gold uppercase font-bold tracking-widest">Kills</span>
+                          </div>
+                          <div className="bg-gold border border-gold p-2 rounded-sm text-center">
+                            <span className="block font-orbitron font-black text-black text-sm leading-none mb-1">
+                              {(() => {
+                                const k = parseInt(p.kills || '0');
+                                const m = parseInt(p.matches || '0');
+                                const s = p.status || 'Active';
+                                let score = (k * 100) + (m * 10);
+                                if (s === 'Inactive') score -= 5000;
+                                return Math.max(0, score).toLocaleString();
+                              })()}
+                            </span>
+                            <span className="text-[7px] text-black font-bold uppercase tracking-widest">Points</span>
                           </div>
                         </div>
                       </>
@@ -1865,15 +1897,18 @@ const ManagementPage = ({ isAdmin, onNavigate }: { isAdmin?: boolean, onNavigate
   </div>
 );
 
-const AboutPage = ({ stats }: { stats: { divisionCount: number, proRosterCount: number, foundedYear: number } }) => (
+const AboutPage = ({ stats, branding, staff }: { stats: { divisionCount: number, proRosterCount: number, foundedYear: number }, branding: any, staff: any[] }) => (
   <div className="pt-24 container mx-auto px-4 min-h-screen">
     <div className="grid lg:grid-cols-2 gap-16 items-center mb-24">
       <div>
-        <span className="text-neon-red text-[11px] font-bold tracking-[0.4em] uppercase block mb-3 font-orbitron">Our Legacy</span>
-        <h1 className="font-bebas text-7xl md:text-8xl leading-none text-gold mb-8">BTS<br/><span className="text-white">eSports</span></h1>
+        <span className="text-neon-red text-[11px] font-bold tracking-[0.4em] uppercase block mb-3 font-orbitron">{branding.tagLine || 'Our Legacy'}</span>
+        <h1 className="font-bebas text-7xl md:text-8xl leading-none text-gold mb-8">
+           {branding.orgName.split(' ')[0]}<br/>
+           <span className="text-white">{branding.orgName.split(' ').slice(1).join(' ')}</span>
+        </h1>
         <div className="space-y-4 text-neutral-400 leading-relaxed text-base md:text-lg">
           <p>
-            BTS eSports is a performance-driven gaming organization founded in {stats.foundedYear} with a mission to identify and cultivate elite talent in India.
+            {branding.orgName} is a performance-driven gaming organization founded in {stats.foundedYear} with a mission to identify and cultivate elite talent in India.
           </p>
           <p>
             What started as a single BGMI roster has evolved into a multi-divisional power infrastructure, representing professional standards in team coordination, strategy, and mental fortitude.
@@ -1885,14 +1920,15 @@ const AboutPage = ({ stats }: { stats: { divisionCount: number, proRosterCount: 
       </div>
       <div className="grid grid-cols-2 gap-4">
         {[
-          { color: 'border-gold', val: stats.foundedYear.toString(), lbl: 'Founded' },
-          { color: 'border-neon-red', val: stats.divisionCount.toString(), lbl: 'Divisions' },
-          { color: 'border-gold', val: `${stats.proRosterCount}+`, lbl: 'Pro Roster' },
+          { color: 'border-gold', val: stats.foundedYear.toString(), lbl: 'Founded Year' },
+          { color: 'border-neon-red', val: stats.divisionCount.toString(), lbl: 'Elite Divisions' },
+          { color: 'border-gold', val: `${stats.proRosterCount}+`, lbl: 'Pro Active Roster' },
           { color: 'border-neon-red', val: 'ALL', lbl: 'India Presence' },
         ].map((item, i) => (
-          <div key={i} className={`bg-neutral-900 border ${item.color} border-t-4 p-8 text-center`}>
-            <div className="font-bebas text-5xl text-white mb-2">{item.val}</div>
-            <div className="text-[10px] text-neutral-500 font-bold uppercase tracking-widest">{item.lbl}</div>
+          <div key={i} className={`bg-neutral-900 border ${item.color} border-t-4 p-8 text-center relative group overflow-hidden`}>
+            <div className="font-bebas text-5xl text-white mb-2 relative z-10">{item.val}</div>
+            <div className="text-[10px] text-neutral-500 font-bold uppercase tracking-widest relative z-10">{item.lbl}</div>
+            <div className="absolute inset-0 bg-gold/5 transform translate-y-full group-hover:translate-y-0 transition-transform duration-500" />
           </div>
         ))}
       </div>
@@ -1900,22 +1936,45 @@ const AboutPage = ({ stats }: { stats: { divisionCount: number, proRosterCount: 
 
     <div className="h-px bg-gradient-to-r from-transparent via-gold/30 to-transparent mb-24" />
 
-    <SectionHeader tag="Executive Oversight" title="Leadership" goldSpan="& Support" />
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-24">
-      {[
-        { role: 'Founder', name: 'BTS Management', desc: 'Visionary leadership focused on Indian eSports growth.', icon: <Shield className="text-gold" size={24} /> },
-        { role: 'Manager', name: 'Operations Head', desc: 'Managing roster dynamics and tournament schedules.', icon: <UserIcon size={24} className="text-neon-red" /> },
-        { role: 'Sponsor', name: 'Tier 1 Partners', desc: 'Fueling our journey through the competitive circuit.', icon: <Flame size={24} className="text-gold" /> }
-      ].map((lead, i) => (
-        <div key={i} className="bg-neutral-900 border border-white/5 p-8 relative group overflow-hidden">
-          <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-            {lead.icon}
+    <SectionHeader 
+       tag={branding.oversightTitle || "Executive Oversight"} 
+       title={branding.commandTitle?.split(' ')[0] || "Command"} 
+       goldSpan={branding.commandTitle?.split(' ').slice(1).join(' ') || "Staff"} 
+       sub="The tactical minds behind operations and squad coordination." 
+    />
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-24">
+      {staff.length > 0 ? staff.map((lead, i) => (
+        <div key={i} className="bg-neutral-900 border border-white/5 relative group overflow-hidden transition-all hover:border-gold/30">
+          <div className="aspect-[4/5] overflow-hidden relative">
+             {lead.image ? (
+               <img src={getSafeImageUrl(lead.image)} alt={lead.name} className="w-full h-full object-cover filter grayscale group-hover:grayscale-0 group-hover:scale-105 transition-all duration-700" referrerPolicy="no-referrer" />
+             ) : (
+               <div className="w-full h-full bg-neutral-800 flex items-center justify-center">
+                  <Shield size={64} className="text-neutral-700" />
+               </div>
+             )}
+             <div className="absolute inset-0 bg-black/40 group-hover:bg-transparent transition-colors" />
+             <div className="absolute bottom-0 left-0 w-full h-1/2 bg-gradient-to-t from-neutral-900 via-neutral-900/40 to-transparent" />
+             <div className="absolute top-4 right-4 p-2 bg-neutral-900/80 backdrop-blur-sm border border-gold/20 opacity-0 group-hover:opacity-100 transition-all">
+                <Shield size={24} className="text-gold" />
+             </div>
+             
+             <div className="absolute bottom-6 left-6 right-6">
+                <div className="text-gold text-[8px] font-black uppercase tracking-[0.3em] mb-1">{lead.role}</div>
+                <h3 className="font-bebas text-3xl text-white tracking-widest leading-none mb-2">{lead.name}</h3>
+                <p className="text-[9px] text-neutral-400 font-bold uppercase tracking-widest leading-relaxed opacity-0 group-hover:opacity-100 transform translate-y-2 group-hover:translate-y-0 transition-all duration-300">
+                  {lead.desc}
+                </p>
+             </div>
           </div>
-          <div className="text-gold text-[10px] font-black uppercase tracking-[0.2em] mb-4">{lead.role}</div>
-          <h3 className="font-bebas text-3xl text-white tracking-widest mb-2">{lead.name}</h3>
-          <p className="text-xs text-neutral-500 leading-relaxed uppercase font-bold tracking-tighter">{lead.desc}</p>
+          <div className="absolute top-0 left-0 w-[1px] h-0 bg-gold group-hover:h-full transition-all duration-500" />
+          <div className="absolute top-0 left-0 w-0 h-[1px] bg-gold group-hover:w-full transition-all duration-500" />
         </div>
-      ))}
+      )) : (
+        <div className="col-span-full py-20 text-center text-neutral-600 uppercase text-[10px] font-black tracking-widest border border-dashed border-white/10">
+           No staff records established in dynamic database.
+        </div>
+      )}
     </div>
 
     <SectionHeader tag="Foundational Code" title="Core" goldSpan="Values" />
@@ -2692,6 +2751,7 @@ const AdminDashboard = ({ onToast, adminRole, user, orgStatsProp }: { onToast: (
   const [achievements, setAchievements] = useState<any[]>([]);
   const [registrations, setRegistrations] = useState<any[]>([]);
   const [divisions, setDivisions] = useState<any[]>([]);
+  const [staff, setStaff] = useState<any[]>([]);
   const [selectedTournamentForRegs, setSelectedTournamentForRegs] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [showCreateForm, setShowCreateForm] = useState(false);
@@ -2701,6 +2761,7 @@ const AdminDashboard = ({ onToast, adminRole, user, orgStatsProp }: { onToast: (
   const [editingSquadId, setEditingSquadId] = useState<string | null>(null);
   const [editingDivisionId, setEditingDivisionId] = useState<string | null>(null);
   const [editingAchievementId, setEditingAchievementId] = useState<string | null>(null);
+  const [editingStaffId, setEditingStaffId] = useState<string | null>(null);
   const [syncingSheets, setSyncingSheets] = useState(false);
   const [googleSheetsUrl, setGoogleSheetsUrl] = useState(localStorage.getItem('bts_google_sheets_url') || '');
 
@@ -2829,15 +2890,17 @@ const AdminDashboard = ({ onToast, adminRole, user, orgStatsProp }: { onToast: (
     }
   };
 
-  const performGoogleSheetsSync = async () => {
+  const performGoogleSheetsSync = async (customRoster?: any[]) => {
     if (!googleSheetsUrl) {
-      onToast('Configuration Required', 'Please set your Google Apps Script URL in the Admin Plan tab first.');
-      setActiveTab('data');
+      if (!customRoster) {
+        onToast('Configuration Required', 'Please set your Google Apps Script URL in the Admin Plan tab first.');
+        setActiveTab('data');
+      }
       return;
     }
 
     if (!googleSheetsUrl.includes('script.google.com/macros/s/')) {
-      onToast('Invalid URL', 'This does not look like a Google Script Web App URL. It should contain "/macros/s/.../exec"');
+      if (!customRoster) onToast('Invalid URL', 'This does not look like a Google Script Web App URL. It should contain "/macros/s/.../exec"');
       return;
     }
 
@@ -2849,8 +2912,10 @@ const AdminDashboard = ({ onToast, adminRole, user, orgStatsProp }: { onToast: (
         return acc;
       }, {});
 
-      if (!squad || squad.length === 0) {
-        onToast('Sync Aborted', 'No player data found to sync. Try refreshing the page.');
+      const activeRoster = customRoster || squad;
+
+      if (!activeRoster || activeRoster.length === 0) {
+        if (!customRoster) onToast('Sync Aborted', 'No player data found to sync. Try refreshing the page.');
         setSyncingSheets(false);
         return;
       }
@@ -2858,7 +2923,7 @@ const AdminDashboard = ({ onToast, adminRole, user, orgStatsProp }: { onToast: (
       // Prepare the payload with detailed mapping as requested
       const payload = {
         timestamp: new Date().toLocaleString(),
-        roster: squad.map(p => ({
+        roster: activeRoster.map(p => ({
           name: ((p as any).name || (p as any).playerName || (p.ign && p.ign.includes('•') ? p.ign.split('•')[1] : p.ign) || 'Unknown').trim(), 
           ign: (p.ign || 'N/A').trim(),
           division: divMap[p.div] || p.div || 'General',
@@ -2961,6 +3026,13 @@ const AdminDashboard = ({ onToast, adminRole, user, orgStatsProp }: { onToast: (
     game: 'BGMI',
     division: 'prime'
   });
+  const [staffForm, setStaffForm] = useState({
+    name: '',
+    role: '',
+    desc: '',
+    image: '',
+    order: '0'
+  });
   const [squadForm, setSquadForm] = useState({
     ign: '',
     role: 'Assaulter',
@@ -2992,21 +3064,23 @@ const AdminDashboard = ({ onToast, adminRole, user, orgStatsProp }: { onToast: (
   const [matchDraft, setMatchDraft] = useState({ map: 'Erangel', result: 'WIN', kills: '0', rank: '1', date: 'Just now' });
 
   const availableTabs = [
-    { id: 'tournaments', label: 'Tournaments', roles: ['Super Admin', 'Tournament Manager'] },
-    { id: 'registrations', label: 'Registrations', roles: ['Super Admin', 'Tournament Manager'] },
-    { id: 'results', label: 'Results', roles: ['Super Admin', 'Tournament Manager'] },
-    { id: 'stats', label: 'Combat Logs', roles: ['Super Admin', 'Tournament Manager', 'Head Scout'] },
-    { id: 'live', label: 'Live Broadcast', roles: ['Super Admin', 'Content Moderator'] },
-    { id: 'highlights', label: 'Highlights', roles: ['Super Admin', 'Content Moderator'] },
-    { id: 'achievements', label: 'Achievements', roles: ['Super Admin', 'Content Moderator'] },
-    { id: 'scrims', label: 'Scrims', roles: ['Super Admin', 'Content Moderator'] },
-    { id: 'divisions', label: 'Divisions', roles: ['Super Admin', 'Content Moderator'] },
-    { id: 'applications', label: 'Recruitment', roles: ['Super Admin', 'Head Scout'] },
-    { id: 'squad', label: 'Pro Roster', roles: ['Super Admin', 'Head Scout'] },
-    { id: 'data', label: 'Admin Plan', roles: ['Super Admin'] },
-    { id: 'users', label: 'User Directory', roles: ['Super Admin', 'Head Scout', 'Tournament Manager'] },
-    { id: 'admins', label: 'Admin Security', roles: ['Super Admin'] },
-    { id: 'settings', label: 'Settings', roles: ['Super Admin', 'Content Moderator', 'Tournament Manager'] },
+    { id: 'tournaments', label: 'Tournaments', icon: <Trophy size={16} />, roles: ['Super Admin', 'Tournament Manager'] },
+    { id: 'registrations', label: 'Registrations', icon: <FileSpreadsheet size={16} />, roles: ['Super Admin', 'Tournament Manager'] },
+    { id: 'results', label: 'Results', icon: <Award size={16} />, roles: ['Super Admin', 'Tournament Manager'] },
+    { id: 'stats', label: 'Combat Logs', icon: <Zap size={16} />, roles: ['Super Admin', 'Tournament Manager', 'Head Scout'] },
+    { id: 'live', label: 'Live Broadcast', icon: <Play size={16} />, roles: ['Super Admin', 'Content Moderator'] },
+    { id: 'highlights', label: 'Highlights', icon: <Flame size={16} />, roles: ['Super Admin', 'Content Moderator'] },
+    { id: 'achievements', label: 'Achievements', icon: <Trophy size={16} />, roles: ['Super Admin', 'Content Moderator'] },
+    { id: 'scrims', label: 'Scrims', icon: <Shield size={16} />, roles: ['Super Admin', 'Content Moderator'] },
+    { id: 'divisions', label: 'Divisions', icon: <Globe size={16} />, roles: ['Super Admin', 'Content Moderator'] },
+    { id: 'staff', label: 'Command Staff', icon: <Shield size={16} />, roles: ['Super Admin'] },
+    { id: 'applications', label: 'Recruitment', icon: <UserPlus size={16} />, roles: ['Super Admin', 'Head Scout'] },
+    { id: 'squad', label: 'Pro Roster', icon: <Users size={16} />, roles: ['Super Admin', 'Head Scout'] },
+    { id: 'info', label: 'Info Hub', icon: <Info size={16} />, roles: ['Super Admin', 'Content Moderator'] },
+    { id: 'oversight', label: 'Executive Oversight', icon: <Shield size={16} />, roles: ['Super Admin'] },
+    { id: 'users', label: 'User Directory', icon: <UserIcon size={16} />, roles: ['Super Admin', 'Head Scout', 'Tournament Manager'] },
+    { id: 'admins', label: 'Admin Security', icon: <ShieldAlert size={16} />, roles: ['Super Admin'] },
+    { id: 'settings', label: 'Global Settings', icon: <Settings size={16} />, roles: ['Super Admin', 'Content Moderator', 'Tournament Manager'] },
   ];
 
   const filteredTabs = availableTabs.filter(tab => tab.roles.includes(adminRole || ''));
@@ -3139,6 +3213,19 @@ const AdminDashboard = ({ onToast, adminRole, user, orgStatsProp }: { onToast: (
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  const startEditingStaff = (s: any) => {
+    setEditingStaffId(s.id);
+    setStaffForm({
+      name: s.name || '',
+      role: s.role || '',
+      desc: s.desc || '',
+      image: s.image || '',
+      order: String(s.order || '0')
+    });
+    setShowCreateForm(true);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   const cancelForm = () => {
     setShowCreateForm(false);
     setEditingTournamentId(null);
@@ -3147,6 +3234,7 @@ const AdminDashboard = ({ onToast, adminRole, user, orgStatsProp }: { onToast: (
     setEditingSquadId(null);
     setEditingDivisionId(null);
     setEditingAchievementId(null);
+    setEditingStaffId(null);
     setTournamentForm({
       name: '',
       game: 'BGMI',
@@ -3181,6 +3269,13 @@ const AdminDashboard = ({ onToast, adminRole, user, orgStatsProp }: { onToast: (
       date: '',
       game: 'BGMI',
       division: 'prime'
+    });
+    setStaffForm({
+      name: '',
+      role: '',
+      desc: '',
+      image: '',
+      order: '0'
     });
     setSquadForm({
       ign: '',
@@ -3222,6 +3317,14 @@ const AdminDashboard = ({ onToast, adminRole, user, orgStatsProp }: { onToast: (
   };
 
   const [liveConfig, setLiveConfig] = useState<{ isLive: boolean, videoId: string, title: string }>({ isLive: false, videoId: '', title: '' });
+  const [brandingConfig, setBrandingConfig] = useState({ 
+    orgName: 'BTS eSports', 
+    tagLine: 'Rise Together', 
+    oversightTitle: 'Executive Oversight', 
+    commandTitle: 'Command Staff',
+    primaryColor: '#FFD700',
+    accentColor: '#FF2244'
+  });
 
   const fetchData = async () => {
     setLoading(true);
@@ -3269,6 +3372,10 @@ const AdminDashboard = ({ onToast, adminRole, user, orgStatsProp }: { onToast: (
         const q = query(collection(db, 'divisions'), orderBy('createdAt', 'desc'));
         const snap = await getDocs(q);
         setDivisions(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      } else if (activeTab === 'staff') {
+        const q = query(collection(db, 'staff'), orderBy('order', 'asc'));
+        const snap = await getDocs(q);
+        setStaff(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
       } else if (activeTab === 'users') {
         const q = query(collection(db, 'users'), orderBy('updatedAt', 'desc'));
         const snap = await getDocs(q);
@@ -3282,11 +3389,11 @@ const AdminDashboard = ({ onToast, adminRole, user, orgStatsProp }: { onToast: (
         const dSnap = await getDocs(query(collection(db, 'divisions'), orderBy('name')));
         const divs = dSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         setDivisions(divs);
-      } else if (activeTab === 'admins') {
+      } else if (activeTab === 'security') { // Fixed from 'admins' to 'security'
         const q = query(collection(db, 'admins'), orderBy('email'));
         const snap = await getDocs(q);
         setAdmins(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-      } else if (activeTab === 'settings') {
+      } else if (activeTab === 'settings' || activeTab === 'info' || activeTab === 'oversight') { // Added info and oversight
         const sSnap = await getDoc(doc(db, 'site_config', 'social'));
         if (sSnap.exists()) {
           setSocialLinksForm(sSnap.data() as any);
@@ -3294,6 +3401,10 @@ const AdminDashboard = ({ onToast, adminRole, user, orgStatsProp }: { onToast: (
         const oSnap = await getDoc(doc(db, 'site_config', 'org_stats'));
         if (oSnap.exists()) {
           setOrgStatsForm(oSnap.data() as any);
+        }
+        const bSnap = await getDoc(doc(db, 'site_config', 'branding'));
+        if (bSnap.exists()) {
+          setBrandingConfig(bSnap.data() as any);
         }
       } else if (activeTab === 'registrations') {
         const tSnap = await getDocs(query(collection(db, 'tournaments'), orderBy('createdAt', 'desc')));
@@ -3317,7 +3428,15 @@ const AdminDashboard = ({ onToast, adminRole, user, orgStatsProp }: { onToast: (
     }
   };
 
-  const [socialLinksForm, setSocialLinksForm] = useState({ youtube: '', instagram: '' });
+  const [socialLinksForm, setSocialLinksForm] = useState({ 
+    youtube: '', 
+    instagram: '',
+    discord: '',
+    whatsapp: '',
+    facebook: '',
+    twitter: '',
+    telegram: ''
+  });
   const [orgStatsForm, setOrgStatsForm] = useState({ divisionCount: orgStatsProp?.divisionCount || 5, proRosterCount: orgStatsProp?.proRosterCount || 40, foundedYear: orgStatsProp?.foundedYear || 2019 });
   const [isSavingSettings, setIsSavingSettings] = useState(false);
 
@@ -3326,7 +3445,8 @@ const AdminDashboard = ({ onToast, adminRole, user, orgStatsProp }: { onToast: (
     try {
       await setDoc(doc(db, 'site_config', 'social'), { ...socialLinksForm, updatedAt: serverTimestamp() }, { merge: true });
       await setDoc(doc(db, 'site_config', 'org_stats'), { ...orgStatsForm, updatedAt: serverTimestamp() }, { merge: true });
-      onToast('Settings Saved', 'Organization profile and social links updated.');
+      await setDoc(doc(db, 'site_config', 'branding'), { ...brandingConfig, updatedAt: serverTimestamp() }, { merge: true });
+      onToast('Settings Saved', 'Organization profile, branding and social links updated.');
     } catch (error) {
       reportFirestoreError(error, 'write', 'site_config/social', onToast);
     } finally {
@@ -3517,6 +3637,49 @@ const AdminDashboard = ({ onToast, adminRole, user, orgStatsProp }: { onToast: (
       console.error("Delete Error:", error);
       onToast('Error', 'Insufficient permissions to delete.');
       reportFirestoreError(error, 'delete', `tournaments/${id}`, onToast);
+    }
+  };
+
+  const submitStaff = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!staffForm.name || !staffForm.role) {
+      onToast('Error', 'Name and Role are required.');
+      return;
+    }
+
+    try {
+      const payload = {
+        ...staffForm,
+        order: Number(staffForm.order),
+        updatedAt: serverTimestamp()
+      };
+
+      if (editingStaffId) {
+        await updateDoc(doc(db, 'staff', editingStaffId), payload);
+        onToast('Updated', 'Staff member profile updated.');
+      } else {
+        await addDoc(collection(db, 'staff'), {
+          ...payload,
+          createdAt: serverTimestamp()
+        });
+        onToast('Success', 'New Command Staff added.');
+      }
+
+      cancelForm();
+      fetchData();
+    } catch (error) {
+      reportFirestoreError(error, editingStaffId ? 'update' : 'create', 'staff', onToast);
+    }
+  };
+
+  const deleteStaff = async (id: string) => {
+    if (!confirm('Remove this staff member from internal oversight?')) return;
+    try {
+      await deleteDoc(doc(db, 'staff', id));
+      onToast('Deleted', 'Staff member removed.');
+      fetchData();
+    } catch (error) {
+      reportFirestoreError(error, 'delete', `staff/${id}`, onToast);
     }
   };
 
@@ -3831,8 +3994,17 @@ const AdminDashboard = ({ onToast, adminRole, user, orgStatsProp }: { onToast: (
         onToast('Enlisted', 'New member joined the squad.');
       }
 
+      // Re-fetch fresh roster and sync to Google Sheets automatically
+      const q = query(collection(db, 'squad'), orderBy('ign'));
+      const snap = await getDocs(q);
+      const freshRoster = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setSquad(freshRoster);
+
+      if (googleSheetsUrl) {
+        performGoogleSheetsSync(freshRoster);
+      }
+
       cancelForm();
-      fetchData();
     } catch (error) {
       reportFirestoreError(error, editingSquadId ? 'update' : 'create', 'squad', onToast);
     }
@@ -3874,10 +4046,30 @@ const AdminDashboard = ({ onToast, adminRole, user, orgStatsProp }: { onToast: (
         updateData.openRoomMatches = (player.openRoomMatches || 0) + 1;
       }
 
-      // Add last match hint to metadata if possible (optional but cool)
+      // Add last match hint to metadata 
       if (matchStatForm.map) {
          updateData.lastMatchMap = matchStatForm.map;
+         const mapKey = matchStatForm.map.toLowerCase();
+         if (['erangel', 'miramar', 'sanhok', 'vikendi'].includes(mapKey)) {
+           const killsKey = `${mapKey}Kills`;
+           const matchesKey = `${mapKey}Matches`;
+           updateData[killsKey] = (player[killsKey] || 0) + killsToAdd;
+           updateData[matchesKey] = (player[matchesKey] || 0) + 1;
+         }
       }
+
+      // Mission Log entry
+      const logEntry = {
+        id: Date.now().toString(),
+        date: new Date().toLocaleDateString(),
+        map: matchStatForm.map || 'Unknown',
+        type: matchStatForm.matchType,
+        kills: killsToAdd,
+        rank: 'N/A',
+        result: killsToAdd >= 5 ? 'WIN' : 'LOSS',
+        brief: matchStatForm.matchBrief || 'No briefing recorded.'
+      };
+      updateData.missionLog = [logEntry, ...(player.missionLog || [])].slice(0, 20);
 
       // Calculate totals reliably
       const sk = updateData.scrimsKills !== undefined ? updateData.scrimsKills : (player.scrimsKills || 0);
@@ -3902,6 +4094,14 @@ const AdminDashboard = ({ onToast, adminRole, user, orgStatsProp }: { onToast: (
       await updateDoc(doc(db, 'squad', matchStatForm.playerId), updateData);
       
       onToast('Stats Synchronized', `${player.ign}'s combat log updated (+${killsToAdd} kills).`);
+      
+      // Auto-sync to Google Sheets if possible
+      const updatedSquad = squad.map(s => s.id === matchStatForm.playerId ? { ...s, ...updateData } : s);
+      setSquad(updatedSquad);
+      if (googleSheetsUrl) {
+         performGoogleSheetsSync(updatedSquad);
+      }
+
       setMatchStatForm({ 
         playerId: '', 
         game: 'BGMI', 
@@ -3913,6 +4113,83 @@ const AdminDashboard = ({ onToast, adminRole, user, orgStatsProp }: { onToast: (
       fetchData();
     } catch (error) {
       reportFirestoreError(error, 'update', `squad/${matchStatForm.playerId}`, onToast);
+    }
+  };
+
+  const deleteMatchStat = async (playerId: string, matchId: string) => {
+    if (!confirm('Permanent Data Deletion: Are you sure you want to remove this match record and recalculate all stats?')) return;
+    
+    const player = squad.find(s => s.id === playerId);
+    if (!player) return;
+
+    try {
+      const matchToDelete = player.missionLog?.find(m => m.id === matchId);
+      if (!matchToDelete) {
+        onToast('Error', 'Match record not found.');
+        return;
+      }
+
+      const killsToRemove = parseInt(matchToDelete.kills) || 0;
+      let updateData: any = {};
+      
+      // Categorized stats removal
+      if (matchToDelete.type === 'scrim') {
+        updateData.scrimsKills = Math.max(0, (player.scrimsKills || 0) - killsToRemove);
+        updateData.scrimsMatches = Math.max(0, (player.scrimsMatches || 0) - 1);
+      } else if (matchToDelete.type === 'tournament') {
+        updateData.tourneyKills = Math.max(0, (player.tourneyKills || 0) - killsToRemove);
+        updateData.tourneyMatches = Math.max(0, (player.tourneyMatches || 0) - 1);
+      } else if (matchToDelete.type === 'open_room') {
+        updateData.openRoomKills = Math.max(0, (player.openRoomKills || 0) - killsToRemove);
+        updateData.openRoomMatches = Math.max(0, (player.openRoomMatches || 0) - 1);
+      }
+
+      // Map stats removal
+      const mapKey = matchToDelete.map.toLowerCase();
+      if (['erangel', 'miramar', 'sanhok', 'vikendi'].includes(mapKey)) {
+        const killsKey = `${mapKey}Kills`;
+        const matchesKey = `${mapKey}Matches`;
+        updateData[killsKey] = Math.max(0, (player[killsKey] || 0) - killsToRemove);
+        updateData[matchesKey] = Math.max(0, (player[matchesKey] || 0) - 1);
+      }
+
+      // Filter mission log
+      updateData.missionLog = player.missionLog?.filter(m => m.id !== matchId) || [];
+
+      // Recalculate totals
+      const sk = updateData.scrimsKills !== undefined ? updateData.scrimsKills : (player.scrimsKills || 0);
+      const sm = updateData.scrimsMatches !== undefined ? updateData.scrimsMatches : (player.scrimsMatches || 0);
+      const tk = updateData.tourneyKills !== undefined ? updateData.tourneyKills : (player.tourneyKills || 0);
+      const tm = updateData.tourneyMatches !== undefined ? updateData.tourneyMatches : (player.tourneyMatches || 0);
+      const ok = updateData.openRoomKills !== undefined ? updateData.openRoomKills : (player.openRoomKills || 0);
+      const om = updateData.openRoomMatches !== undefined ? updateData.openRoomMatches : (player.openRoomMatches || 0);
+
+      const totalKills = sk + tk + ok;
+      const totalMatches = sm + tm + om;
+
+      updateData.kills = totalKills;
+      updateData.matches = totalMatches;
+      updateData.kd = totalMatches > 0 ? (totalKills / totalMatches).toFixed(2) : '0.00';
+      updateData.updatedAt = serverTimestamp();
+
+      // Update history (simplified: remove last entry if we're adding one per match, 
+      // but since they might be batch updated, we'll just re-push current KD)
+      const existingHistory = player.kdHistory || [];
+      const newHistory = [...existingHistory, parseFloat(updateData.kd)].slice(-10);
+      updateData.kdHistory = newHistory;
+
+      await updateDoc(doc(db, 'squad', playerId), updateData);
+      
+      onToast('Stats Adjusted', `Match removed. Total stats recalculated for ${player.ign}.`);
+      
+      const updatedSquad = squad.map(s => s.id === playerId ? { ...s, ...updateData } : s);
+      setSquad(updatedSquad);
+      if (googleSheetsUrl) {
+         performGoogleSheetsSync(updatedSquad);
+      }
+      fetchData();
+    } catch (error) {
+      reportFirestoreError(error, 'update', `squad/${playerId}`, onToast);
     }
   };
 
@@ -3969,25 +4246,238 @@ const AdminDashboard = ({ onToast, adminRole, user, orgStatsProp }: { onToast: (
     <div className="pt-24 container mx-auto px-4 min-h-screen">
       <SectionHeader tag="Admin" title="Control" goldSpan="Panel" sub="Manage operations, reviews, and event coordination." />
       
-      <div className="flex gap-4 mb-8 overflow-x-auto pb-2 scrollbar-none">
+      {/* Tactical Overview Bar */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+         {[
+           { label: 'Active Squad', value: squad.length, icon: Users, color: 'text-gold' },
+           { label: 'Pending Apps', value: applications.filter(a => a.status === 'pending').length, icon: UserPlus, color: 'text-blue-400' },
+           { label: 'Live Events', value: tournaments.filter(t => t.status === 'open' || t.status === 'ongoing').length, icon: Trophy, color: 'text-green-500' },
+           { label: 'Victory Logs', value: achievements.length, icon: Award, color: 'text-red-500' },
+         ].map((stat, i) => (
+            <div key={i} className="bg-neutral-900 border border-white/5 p-4 flex items-center justify-between group hover:border-gold/20 transition-all">
+               <div>
+                  <div className="text-[8px] font-black text-neutral-500 uppercase tracking-widest leading-none mb-1">{stat.label}</div>
+                  <div className={`text-2xl font-bebas ${stat.color} tracking-widest`}>{stat.value}</div>
+               </div>
+               <stat.icon size={20} className="text-neutral-700 group-hover:text-gold transition-colors" />
+            </div>
+         ))}
+      </div>
+      
+      <div className="flex gap-2 mb-8 overflow-x-auto pb-4 scrollbar-thin scrollbar-thumb-gold/20">
         {filteredTabs.map((tabObj) => (
           <button
             key={tabObj.id}
             onClick={() => setActiveTab(tabObj.id as any)}
-            className={`px-6 py-2 font-bebas text-lg tracking-widest border transition-all whitespace-nowrap ${
-              activeTab === tabObj.id ? 'bg-gold text-black border-gold' : 'text-gold border-gold/30 hover:border-gold'
+            className={`flex items-center gap-2 px-6 py-2.5 font-bebas text-lg tracking-widest border transition-all whitespace-nowrap group ${
+              activeTab === tabObj.id 
+                ? 'bg-gold text-black border-gold shadow-[0_0_15px_rgba(212,175,55,0.2)]' 
+                : 'text-gold border-gold/20 hover:border-gold hover:bg-gold/5'
             }`}
           >
-            {activeTab === tabObj.id ? tabObj.label : tabObj.label}
+            <span className={activeTab === tabObj.id ? 'text-black' : 'text-gold/60 group-hover:text-gold transition-colors'}>
+              {(tabObj as any).icon}
+            </span>
+            {tabObj.label}
           </button>
         ))}
       </div>
 
-      <div className="bg-neutral-900 border border-gold/15 p-8 pb-32">
+      <motion.div 
+        key={activeTab}
+        initial={{ opacity: 0, scale: 0.98 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.3 }}
+        className="bg-neutral-900 border border-gold/15 p-4 md:p-8 pb-32 relative shadow-2xl backdrop-blur-sm"
+      >
+        <div className="absolute top-0 left-0 w-1 h-12 bg-gold" />
+        <div className="absolute top-0 left-0 w-12 h-1 bg-gold" />
         {loading ? (
           <div className="text-center py-20 text-gold font-orbitron animate-pulse">Accessing Encrypted Data...</div>
         ) : (
           <div className="space-y-6">
+            {activeTab === 'info' && (
+              <div className="space-y-8">
+                <div className="bg-white/5 border border-gold/20 p-8 space-y-6">
+                  <h3 className="font-bebas text-3xl text-gold tracking-widest">Organization Identity & Intelligence</h3>
+                  <div className="grid md:grid-cols-2 gap-8">
+                    <div className="space-y-4">
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest">Organization Legal Name</label>
+                        <input 
+                          value={brandingConfig.orgName}
+                          onChange={(e) => setBrandingConfig({...brandingConfig, orgName: e.target.value})}
+                          placeholder="e.g. BTS eSports"
+                          className="w-full bg-black/40 border border-white/10 p-4 text-sm text-white focus:border-gold outline-none font-orbitron"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest">Global Tagline</label>
+                        <input 
+                          value={brandingConfig.tagLine}
+                          onChange={(e) => setBrandingConfig({...brandingConfig, tagLine: e.target.value})}
+                          placeholder="e.g. Rise Together"
+                          className="w-full bg-black/40 border border-white/10 p-4 text-sm text-white focus:border-gold outline-none"
+                        />
+                      </div>
+                      <button 
+                        onClick={saveSettings}
+                        disabled={isSavingSettings}
+                        className="w-full bg-gold text-black py-4 font-black uppercase tracking-widest text-[11px] hover:bg-white transition-all shadow-lg"
+                      >
+                        {isSavingSettings ? 'Pushing Data...' : 'Save Organization Identity'}
+                      </button>
+                    </div>
+                    <div className="space-y-4 bg-gold/5 p-6 border border-gold/10">
+                      <div className="text-[10px] font-bold text-gold uppercase tracking-[0.2em] mb-4">Tactical Synchronization (Google Sheets)</div>
+                      <div className="space-y-3">
+                        <div className="flex flex-col gap-1">
+                          <label className="text-[8px] font-black text-neutral-500 uppercase">Script Web App URL</label>
+                          <input 
+                            type="url" 
+                            value={googleSheetsUrl} 
+                            onChange={(e) => saveSheetsUrl(e.target.value)}
+                            className="bg-black/40 border border-white/10 p-2 text-[10px] text-white outline-none focus:border-gold"
+                          />
+                        </div>
+                        <div className="flex gap-2">
+                          <button 
+                            onClick={performGoogleSheetsSync}
+                            disabled={syncingSheets || !googleSheetsUrl}
+                            className={`flex-1 py-2 text-[9px] font-black uppercase tracking-widest transition-all ${syncingSheets ? 'bg-gold/20' : 'bg-gold text-black hover:bg-white'}`}
+                          >
+                            {syncingSheets ? 'Syncing...' : 'Sync Now'}
+                          </button>
+                          <button 
+                            onClick={() => setShowScriptHelp(!showScriptHelp)}
+                            className="px-4 py-2 bg-white/5 border border-white/10 text-[9px] font-black uppercase tracking-widest hover:border-gold/50"
+                          >
+                            {showScriptHelp ? 'Hide Help' : 'Integrate'}
+                          </button>
+                        </div>
+                        {showScriptHelp && (
+                          <div className="p-3 bg-black border border-white/5 text-[8px] text-neutral-500 leading-relaxed uppercase">
+                            1. Copy Apps Script code from 'Admin Plan' logic. 2. Deploy as Web App. 3. Set access to 'Anyone'. 4. Paste URL here.
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div className="bg-neutral-900 border border-gold/15 p-6 space-y-4">
+                    <div className="flex items-center gap-2 text-gold">
+                      <Target size={20} />
+                      <h4 className="font-bebas text-xl tracking-widest">Command Logic</h4>
+                    </div>
+                    <p className="text-neutral-500 text-[10px] uppercase font-bold tracking-widest leading-relaxed">
+                      All tactical operations are authorized by the Super Admin. Current clearance level: {adminRole}.
+                    </p>
+                  </div>
+                  <div className="bg-neutral-900 border border-gold/15 p-6 space-y-4">
+                    <div className="flex items-center gap-2 text-gold">
+                      <Globe size={20} />
+                      <h4 className="font-bebas text-xl tracking-widest">Deployment Grid</h4>
+                    </div>
+                    <p className="text-neutral-500 text-[10px] uppercase font-bold tracking-widest leading-relaxed">
+                      Infrastructure running on {window.location.hostname}. Intelligence Dossier: Active.
+                    </p>
+                  </div>
+                  <div className="bg-neutral-900 border border-gold/15 p-6 space-y-4">
+                    <div className="flex items-center gap-2 text-gold">
+                      <Award size={20} />
+                      <h4 className="font-bebas text-xl tracking-widest">Victory Quotient</h4>
+                    </div>
+                    <p className="text-neutral-500 text-[10px] uppercase font-bold tracking-widest leading-relaxed">
+                      Current organization stats: {orgStatsProp?.proRosterCount || 0} active operatives across {orgStatsProp?.divisionCount || 0} divisions.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'oversight' && (
+              <div className="space-y-8">
+                <div className="bg-white/5 border border-gold/20 p-8 space-y-6">
+                   <div className="flex justify-between items-start">
+                     <div>
+                       <h3 className="font-bebas text-3xl text-gold tracking-widest">Executive Oversight Internal</h3>
+                       <p className="text-neutral-500 text-[10px] uppercase font-bold tracking-widest mt-1">Authorized personnel only. Managing top-tier command structures.</p>
+                     </div>
+                   </div>
+                   
+                   <div className="grid md:grid-cols-2 gap-8">
+                      <div className="space-y-4">
+                        <div className="space-y-1">
+                           <label className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest">Oversight Title</label>
+                           <input 
+                             value={brandingConfig.oversightTitle}
+                             onChange={(e) => setBrandingConfig({...brandingConfig, oversightTitle: e.target.value})}
+                             placeholder="Executive Oversight"
+                             className="w-full bg-black/40 border border-white/10 p-4 text-sm text-white focus:border-gold outline-none"
+                           />
+                        </div>
+                        <div className="space-y-1">
+                           <label className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest">Staff Section Title</label>
+                           <input 
+                             value={brandingConfig.commandTitle}
+                             onChange={(e) => setBrandingConfig({...brandingConfig, commandTitle: e.target.value})}
+                             placeholder="Command Staff"
+                             className="w-full bg-black/40 border border-white/10 p-4 text-sm text-white focus:border-gold outline-none"
+                           />
+                        </div>
+                        <button 
+                          onClick={saveSettings}
+                          disabled={isSavingSettings}
+                          className="bg-gold text-black px-10 py-3 font-black uppercase tracking-widest text-[10px] hover:bg-white transition-all"
+                        >
+                          {isSavingSettings ? 'Saving...' : 'Save Oversight Config'}
+                        </button>
+                      </div>
+                      
+                      <div className="bg-red-900/10 border border-red-900/30 p-6 space-y-4 relative overflow-hidden">
+                        <div className="absolute -top-10 -right-10 opacity-5 text-red-500">
+                           <ShieldAlert size={200} />
+                        </div>
+                        <h4 className="font-bebas text-xl text-red-500 tracking-widest">Critical Override</h4>
+                        <p className="text-neutral-500 text-[10px] uppercase font-bold tracking-widest leading-relaxed">
+                          The Executive Oversight panel handles structural organization titles. These appear in the 'About' intelligence dossier. 
+                          Protocol requires careful adjustment of these identifiers.
+                        </p>
+                        <div className="pt-4 flex gap-4">
+                           <button onClick={() => setActiveTab('admins')} className="text-[10px] font-black text-gold uppercase tracking-widest underline decoration-gold/30">Go to Security Access Control</button>
+                        </div>
+                      </div>
+                   </div>
+                </div>
+
+                <div className="space-y-4">
+                   <h4 className="font-bebas text-2xl text-white tracking-widest flex items-center gap-2">
+                      <Users className="text-gold" size={20} /> Command Structure Visualization
+                   </h4>
+                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                      {staff.map((s, idx) => (
+                        <div key={idx} className="bg-neutral-900 border border-white/10 p-4 flex flex-col items-center text-center">
+                           <div className="w-16 h-16 bg-gold/10 rounded-full flex items-center justify-center font-orbitron font-black text-gold border border-gold/20 mb-4">
+                              {s.name.charAt(0)}
+                           </div>
+                           <div className="font-bebas text-xl text-white tracking-widest">{s.name}</div>
+                           <div className="text-[8px] font-black text-gold uppercase tracking-widest mt-1 underline decoration-gold/30">{s.role}</div>
+                        </div>
+                      ))}
+                      <button 
+                        onClick={() => setActiveTab('staff')}
+                        className="bg-white/5 border border-white/5 border-dashed p-4 flex flex-col items-center justify-center text-neutral-600 hover:text-gold hover:border-gold/30 transition-all"
+                      >
+                         <Plus size={24} className="mb-2" />
+                         <span className="text-[10px] font-black uppercase tracking-widest">Modify Staff</span>
+                      </button>
+                   </div>
+                </div>
+              </div>
+            )}
+
             {activeTab === 'applications' && (
               <div className="space-y-6">
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white/5 p-6 border border-gold/10">
@@ -4652,7 +5142,7 @@ const AdminDashboard = ({ onToast, adminRole, user, orgStatsProp }: { onToast: (
               </div>
             )}
 
-            {activeTab === 'data' && (
+            {activeTab === 'info' && (
               <div className="space-y-8">
                 <SectionHeader tag="Executive Control" title="Admin" goldSpan="Plan" sub="Manage data synchronization and organization-wide exports." className="!text-left !items-start" />
                 
@@ -5328,6 +5818,182 @@ function doPost(e) {
                      </div>
                   </motion.div>
                 )}
+
+                {matchStatForm.playerId && (
+                  <div className="max-w-4xl mx-auto mt-12 space-y-6">
+                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                      <div className="space-y-1">
+                        <h4 className="font-bebas text-2xl text-gold tracking-widest leading-none">Match Archive</h4>
+                        <p className="text-neutral-500 text-[9px] uppercase font-bold tracking-widest">Chronological mission records for selected operative.</p>
+                      </div>
+                    </div>
+
+                    <div className="bg-black/40 border border-white/5 overflow-hidden">
+                      <table className="w-full text-left border-collapse">
+                        <thead>
+                          <tr className="border-b border-white/5 bg-white/[0.02]">
+                            <th className="p-4 text-[9px] font-black text-neutral-500 uppercase tracking-widest">Date</th>
+                            <th className="p-4 text-[9px] font-black text-neutral-500 uppercase tracking-widest">Map</th>
+                            <th className="p-4 text-[9px] font-black text-neutral-500 uppercase tracking-widest">Mode</th>
+                            <th className="p-4 text-[9px] font-black text-neutral-500 uppercase tracking-widest">Kills</th>
+                            <th className="p-4 text-[9px] font-black text-neutral-500 uppercase tracking-widest text-right">Ops</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-white/5">
+                          {(() => {
+                            const p = squad.find(s => s.id === matchStatForm.playerId);
+                            const logs = p?.missionLog || [];
+                            if (logs.length === 0) {
+                              return (
+                                <tr>
+                                  <td colSpan={5} className="p-8 text-center text-neutral-600 text-[10px] uppercase font-bold tracking-widest">
+                                    No combat records found for this operative.
+                                  </td>
+                                </tr>
+                              );
+                            }
+                            return logs.map((log: any, idx: number) => (
+                              <tr key={log.id || idx} className="hover:bg-white/[0.01] transition-all group">
+                                <td className="p-4">
+                                  <div className="text-[10px] font-black text-white">{log.date}</div>
+                                </td>
+                                <td className="p-4">
+                                  <div className="text-[10px] font-bold text-neutral-300 uppercase tracking-widest">{log.map}</div>
+                                </td>
+                                <td className="p-4">
+                                  <span className={`text-[8px] font-black uppercase tracking-tighter px-2 py-0.5 border ${
+                                    log.type === 'tournament' ? 'border-gold text-gold bg-gold/10' : 
+                                    log.type === 'scrim' ? 'border-blue-500 text-blue-500 bg-blue-500/10' : 
+                                    'border-neutral-500 text-neutral-500 bg-neutral-500/10'
+                                  }`}>
+                                    {log.type.replace('_', ' ')}
+                                  </span>
+                                </td>
+                                <td className="p-4">
+                                  <div className="text-sm font-orbitron text-gold">{log.kills}</div>
+                                </td>
+                                <td className="p-4 text-right">
+                                  <button 
+                                    onClick={() => deleteMatchStat(matchStatForm.playerId, log.id)}
+                                    className="p-2 text-neutral-600 hover:text-red-500 transition-colors"
+                                    title="Delete Record"
+                                  >
+                                    <Trash2 size={14} />
+                                  </button>
+                                </td>
+                              </tr>
+                            ));
+                          })()}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {activeTab === 'staff' && (
+              <div className="space-y-8">
+                <div className="flex justify-between items-center bg-white/5 p-6 border border-gold/10">
+                   <div>
+                      <h4 className="font-bebas text-2xl text-gold tracking-widest">Command Staff Matrix</h4>
+                      <p className="text-neutral-500 text-[10px] uppercase font-bold tracking-widest">{staff.length} Strategic Leadership Identified</p>
+                   </div>
+                   <button 
+                     onClick={() => showCreateForm ? cancelForm() : setShowCreateForm(true)}
+                     className="bg-gold text-black px-6 py-2 text-[10px] font-black uppercase tracking-widest hover:bg-white transition-all rounded-[2px]"
+                   >
+                     {showCreateForm ? 'Abort' : 'Appoint New Staff'}
+                   </button>
+                </div>
+
+                {showCreateForm && (
+                  <motion.form 
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    onSubmit={submitStaff}
+                    className="bg-white/5 border border-gold/20 p-8 space-y-6"
+                  >
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest italic opacity-60">Full Name</label>
+                        <input 
+                          required
+                          value={staffForm.name}
+                          onChange={(e) => setStaffForm({...staffForm, name: e.target.value})}
+                          placeholder="e.g. Arhan Raja"
+                          className="w-full bg-black/40 border border-white/10 p-3 text-sm text-white focus:border-gold outline-none" 
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest italic opacity-60">Title / Role</label>
+                        <input 
+                          required
+                          value={staffForm.role}
+                          onChange={(e) => setStaffForm({...staffForm, role: e.target.value})}
+                          placeholder="e.g. Founder"
+                          className="w-full bg-black/40 border border-white/10 p-3 text-sm text-white focus:border-gold outline-none" 
+                        />
+                      </div>
+                      <div className="space-y-1 md:col-span-2">
+                        <label className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest italic opacity-60">Strategic Mission / Description</label>
+                        <textarea 
+                          value={staffForm.desc}
+                          onChange={(e) => setStaffForm({...staffForm, desc: e.target.value})}
+                          rows={2}
+                          className="w-full bg-black/40 border border-white/10 p-3 text-sm text-neutral-300 focus:border-gold outline-none resize-none" 
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest italic opacity-60">Operational Portrait (Image URL)</label>
+                        <input 
+                          value={staffForm.image}
+                          onChange={(e) => setStaffForm({...staffForm, image: e.target.value})}
+                          placeholder="https://..."
+                          className="w-full bg-black/40 border border-white/10 p-3 text-sm text-white focus:border-gold outline-none" 
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest italic opacity-60">Display Order</label>
+                        <input 
+                          type="number"
+                          value={staffForm.order}
+                          onChange={(e) => setStaffForm({...staffForm, order: e.target.value})}
+                          className="w-full bg-black/40 border border-white/10 p-3 text-sm text-white focus:border-gold outline-none" 
+                        />
+                      </div>
+                    </div>
+                    <div className="flex gap-4 pt-4">
+                      <button type="submit" className="flex-1 bg-gold text-black py-4 text-xs font-black uppercase tracking-widest hover:bg-white transition-all">
+                        {editingStaffId ? 'Synchronize Appointment' : 'Confirm New Appointment'}
+                      </button>
+                    </div>
+                  </motion.form>
+                )}
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {staff.map(s => (
+                    <div key={s.id} className="bg-neutral-900 border border-white/10 p-6 flex items-start gap-4 group hover:border-gold/30 transition-all">
+                      <div className="w-16 h-16 bg-white/5 border border-white/10 overflow-hidden flex-shrink-0">
+                         {s.image ? <img src={getSafeImageUrl(s.image)} alt={s.name} className="w-full h-full object-cover" /> : <Shield size={24} className="text-neutral-700 m-auto" />}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h5 className="font-bebas text-2xl text-white tracking-widest truncate">{s.name}</h5>
+                        <p className="text-[9px] text-gold font-black uppercase tracking-widest mb-2">{s.role}</p>
+                        <p className="text-[9px] text-neutral-500 line-clamp-2 italic leading-relaxed">{s.desc}</p>
+                        <div className="mt-4 pt-4 border-t border-white/5 flex gap-2">
+                           <button onClick={() => startEditingStaff(s)} className="p-2 border border-white/10 text-neutral-600 hover:text-gold transition-colors">
+                              <Settings size={14} />
+                           </button>
+                           <button onClick={() => deleteStaff(s.id)} className="p-2 border border-white/10 text-neutral-600 hover:text-red-500 transition-colors">
+                              <Trash2 size={14} />
+                           </button>
+                           <div className="ml-auto text-[7px] text-neutral-700 font-bold uppercase py-2">Order: {s.order}</div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
 
@@ -6140,93 +6806,398 @@ function doPost(e) {
                   tag="System Configuration" 
                   title="Global" 
                   goldSpan="Settings" 
-                  sub="Manage the organization's public identity channels and social links."
+                  sub="Manage the organization's public identity channels, social links, and core mission profiles."
                   className="!text-left !items-start"
                 />
 
-                <div className="max-w-2xl bg-neutral-900 border border-gold/15 p-8 md:p-12 space-y-8">
-                   <div className="space-y-6">
-                      <div className="space-y-2">
-                        <label className="text-[10px] font-black text-neutral-500 uppercase tracking-widest flex items-center gap-2">
-                          <Youtube size={14} className="text-red-500" /> YouTube Channel Link
-                        </label>
-                        <input 
-                          value={socialLinksForm.youtube}
-                          onChange={(e) => setSocialLinksForm({...socialLinksForm, youtube: e.target.value})}
-                          placeholder="https://youtube.com/@..."
-                          className="w-full bg-black/40 border border-white/10 p-4 text-sm text-white focus:border-gold outline-none h-14 font-mono"
-                        />
+                <div className="max-w-4xl grid grid-cols-1 lg:grid-cols-2 gap-8">
+                   <div className="bg-neutral-900 border border-gold/15 p-8 space-y-6">
+                      <div className="text-[10px] font-black text-gold uppercase tracking-[0.3em] flex items-center gap-2">
+                        <Globe size={14} /> Social Intelligence Matrix
                       </div>
-
-                      <div className="space-y-2">
-                        <label className="text-[10px] font-black text-neutral-500 uppercase tracking-widest flex items-center gap-2">
-                          <Instagram size={14} className="text-pink-500" /> Instagram Profile Link
-                        </label>
-                        <input 
-                          value={socialLinksForm.instagram}
-                          onChange={(e) => setSocialLinksForm({...socialLinksForm, instagram: e.target.value})}
-                          placeholder="https://instagram.com/..."
-                          className="w-full bg-black/40 border border-white/10 p-4 text-sm text-white focus:border-gold outline-none h-14 font-mono"
-                        />
-                      </div>
-                   </div>
-
-                   <div className="h-px bg-white/5" />
-
-                   <div className="space-y-6">
-                      <div className="text-[10px] font-black text-gold uppercase tracking-[0.3em]">Organization Statistics</div>
                       
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-2">
-                          <label className="text-[9px] font-bold text-neutral-500 uppercase tracking-widest">Founded Year</label>
+                          <label className="text-[9px] font-black text-neutral-500 uppercase tracking-widest flex items-center gap-2">
+                            <Youtube size={12} className="text-red-500" /> YouTube
+                          </label>
                           <input 
-                            type="number"
-                            value={orgStatsForm.foundedYear}
-                            onChange={(e) => setOrgStatsForm({...orgStatsForm, foundedYear: parseInt(e.target.value) || 0})}
-                            className="w-full bg-black/40 border border-white/10 p-3 text-sm text-white focus:border-gold outline-none font-mono"
+                            value={socialLinksForm.youtube}
+                            onChange={(e) => setSocialLinksForm({...socialLinksForm, youtube: e.target.value})}
+                            placeholder="Channel URL"
+                            className="w-full bg-black/40 border border-white/10 p-3 text-[10px] text-white focus:border-gold outline-none"
                           />
                         </div>
+
                         <div className="space-y-2">
-                          <label className="text-[9px] font-bold text-neutral-500 uppercase tracking-widest">Total Divisions</label>
+                          <label className="text-[9px] font-black text-neutral-500 uppercase tracking-widest flex items-center gap-2">
+                            <Instagram size={12} className="text-pink-500" /> Instagram
+                          </label>
                           <input 
-                            type="number"
-                            value={orgStatsForm.divisionCount}
-                            onChange={(e) => setOrgStatsForm({...orgStatsForm, divisionCount: parseInt(e.target.value) || 0})}
-                            className="w-full bg-black/40 border border-white/10 p-3 text-sm text-white focus:border-gold outline-none font-mono"
+                            value={socialLinksForm.instagram}
+                            onChange={(e) => setSocialLinksForm({...socialLinksForm, instagram: e.target.value})}
+                            placeholder="Profile URL"
+                            className="w-full bg-black/40 border border-white/10 p-3 text-[10px] text-white focus:border-gold outline-none"
                           />
                         </div>
+
                         <div className="space-y-2">
-                          <label className="text-[9px] font-bold text-neutral-500 uppercase tracking-widest">Pro Roster Count</label>
+                          <label className="text-[9px] font-black text-neutral-500 uppercase tracking-widest flex items-center gap-2">
+                            <MessageSquare size={12} className="text-indigo-400" /> Discord
+                          </label>
                           <input 
-                            type="number"
-                            value={orgStatsForm.proRosterCount}
-                            onChange={(e) => setOrgStatsForm({...orgStatsForm, proRosterCount: parseInt(e.target.value) || 0})}
-                            className="w-full bg-black/40 border border-white/10 p-3 text-sm text-white focus:border-gold outline-none font-mono"
+                            value={socialLinksForm.discord}
+                            onChange={(e) => setSocialLinksForm({...socialLinksForm, discord: e.target.value})}
+                            placeholder="Invite Link"
+                            className="w-full bg-black/40 border border-white/10 p-3 text-[10px] text-white focus:border-gold outline-none"
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <label className="text-[9px] font-black text-neutral-500 uppercase tracking-widest flex items-center gap-2">
+                            <Smartphone size={12} className="text-green-500" /> WhatsApp
+                          </label>
+                          <input 
+                            value={socialLinksForm.whatsapp}
+                            onChange={(e) => setSocialLinksForm({...socialLinksForm, whatsapp: e.target.value})}
+                            placeholder="Group Link"
+                            className="w-full bg-black/40 border border-white/10 p-3 text-[10px] text-white focus:border-gold outline-none"
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <label className="text-[9px] font-black text-neutral-500 uppercase tracking-widest flex items-center gap-2">
+                            <Facebook size={12} className="text-blue-600" /> Facebook
+                          </label>
+                          <input 
+                            value={socialLinksForm.facebook}
+                            onChange={(e) => setSocialLinksForm({...socialLinksForm, facebook: e.target.value})}
+                            placeholder="Page URL"
+                            className="w-full bg-black/40 border border-white/10 p-3 text-[10px] text-white focus:border-gold outline-none"
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <label className="text-[9px] font-black text-neutral-500 uppercase tracking-widest flex items-center gap-2">
+                            <Twitter size={12} className="text-sky-400" /> Twitter / X
+                          </label>
+                          <input 
+                            value={socialLinksForm.twitter}
+                            onChange={(e) => setSocialLinksForm({...socialLinksForm, twitter: e.target.value})}
+                            placeholder="X Profile"
+                            className="w-full bg-black/40 border border-white/10 p-3 text-[10px] text-white focus:border-gold outline-none"
                           />
                         </div>
                       </div>
                    </div>
 
+                   <div className="space-y-8">
+                     <div className="bg-neutral-900 border border-gold/15 p-8 space-y-6">
+                        <div className="text-[10px] font-black text-gold uppercase tracking-[0.3em] flex items-center gap-2">
+                          <Zap size={14} /> Brand Identity & HUD
+                        </div>
+                        <div className="grid grid-cols-1 gap-6">
+                          <div className="space-y-2">
+                            <label className="text-[9px] font-bold text-neutral-500 uppercase tracking-widest">Global Organization Name</label>
+                            <input 
+                              value={brandingConfig.orgName}
+                              onChange={(e) => setBrandingConfig({...brandingConfig, orgName: e.target.value})}
+                              className="w-full bg-black/40 border border-white/10 p-4 text-sm text-white focus:border-gold outline-none font-orbitron"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <label className="text-[9px] font-bold text-neutral-500 uppercase tracking-widest">Tagline / Operational Mission</label>
+                            <input 
+                              value={brandingConfig.tagLine}
+                              onChange={(e) => setBrandingConfig({...brandingConfig, tagLine: e.target.value})}
+                              className="w-full bg-black/40 border border-white/10 p-4 text-sm text-white focus:border-gold outline-none"
+                            />
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <label className="text-[9px] font-bold text-neutral-500 uppercase tracking-widest">Primary Accent (Gold)</label>
+                              <div className="flex gap-2">
+                                <input 
+                                  type="color"
+                                  value={brandingConfig.primaryColor || '#FFD700'}
+                                  onChange={(e) => setBrandingConfig({...brandingConfig, primaryColor: e.target.value})}
+                                  className="h-10 w-10 bg-transparent border-none cursor-pointer"
+                                />
+                                <input 
+                                  value={brandingConfig.primaryColor || '#FFD700'}
+                                  onChange={(e) => setBrandingConfig({...brandingConfig, primaryColor: e.target.value})}
+                                  className="flex-1 bg-black/40 border border-white/10 p-2 text-xs text-white uppercase font-mono"
+                                />
+                              </div>
+                            </div>
+                            <div className="space-y-2">
+                              <label className="text-[9px] font-bold text-neutral-500 uppercase tracking-widest">Secondary Accent (Red)</label>
+                              <div className="flex gap-2">
+                                <input 
+                                  type="color"
+                                  value={brandingConfig.accentColor || '#FF2244'}
+                                  onChange={(e) => setBrandingConfig({...brandingConfig, accentColor: e.target.value})}
+                                  className="h-10 w-10 bg-transparent border-none cursor-pointer"
+                                />
+                                <input 
+                                  value={brandingConfig.accentColor || '#FF2244'}
+                                  onChange={(e) => setBrandingConfig({...brandingConfig, accentColor: e.target.value})}
+                                  className="flex-1 bg-black/40 border border-white/10 p-2 text-xs text-white uppercase font-mono"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                     </div>
+
+                     <div className="bg-neutral-900 border border-gold/15 p-8 space-y-6">
+                        <div className="text-[10px] font-black text-gold uppercase tracking-[0.3em] flex items-center gap-2">
+                          <Target size={14} /> Mission Metrics
+                        </div>
+                        
+                        <div className="grid grid-cols-3 gap-4">
+                          <div className="space-y-2">
+                            <label className="text-[9px] font-bold text-neutral-500 uppercase tracking-widest text-center block">Founded</label>
+                            <input 
+                              type="number"
+                              value={orgStatsForm.foundedYear}
+                              onChange={(e) => setOrgStatsForm({...orgStatsForm, foundedYear: parseInt(e.target.value) || 0})}
+                              className="w-full bg-black/40 border border-white/10 p-3 text-sm text-white focus:border-gold outline-none font-mono text-center"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <label className="text-[9px] font-bold text-neutral-500 uppercase tracking-widest text-center block">Sectors</label>
+                            <input 
+                              type="number"
+                              value={orgStatsForm.divisionCount}
+                              onChange={(e) => setOrgStatsForm({...orgStatsForm, divisionCount: parseInt(e.target.value) || 0})}
+                              className="w-full bg-black/40 border border-white/10 p-3 text-sm text-white focus:border-gold outline-none font-mono text-center"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <label className="text-[9px] font-bold text-neutral-500 uppercase tracking-widest text-center block">Operatives</label>
+                            <input 
+                              type="number"
+                              value={orgStatsForm.proRosterCount}
+                              onChange={(e) => setOrgStatsForm({...orgStatsForm, proRosterCount: parseInt(e.target.value) || 0})}
+                              className="w-full bg-black/40 border border-white/10 p-3 text-sm text-white focus:border-gold outline-none font-mono text-center"
+                            />
+                          </div>
+                        </div>
+                     </div>
+                   </div>
+                </div>
+
+                <div className="max-w-4xl mt-8">
                    <button 
                      disabled={isSavingSettings}
                      onClick={saveSettings}
-                     className="w-full bg-gold text-black py-4 font-black uppercase text-xs tracking-[0.2em] hover:bg-white transition-all disabled:opacity-50"
+                     className="w-full bg-gold text-black py-5 font-black uppercase text-xs tracking-[0.4em] hover:bg-white transition-all disabled:opacity-50 shadow-[0_10px_30px_rgba(212,175,55,0.2)]"
                    >
-                     {isSavingSettings ? 'Synchronizing Intelligence...' : 'Update Global Profile & Stats'}
+                     {isSavingSettings ? 'Synchronizing Intelligence Database...' : 'Commit Global Website Changes'}
                    </button>
                 </div>
               </div>
             )}
           </div>
         )}
-      </div>
+      </motion.div>
     </div>
+  );
+};
+
+const PlayerDossier = ({ player, onClose }: { player: RankingPlayer, onClose: () => void }) => {
+  return (
+    <motion.div 
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[100] flex items-center justify-center px-4 py-8 bg-black/90 backdrop-blur-md overflow-y-auto"
+    >
+      <motion.div 
+        initial={{ scale: 0.9, y: 20 }}
+        animate={{ scale: 1, y: 0 }}
+        className="w-full max-w-4xl bg-neutral-900 border border-gold/30 relative shadow-[0_0_50px_rgba(212,175,55,0.1)]"
+        style={{ clipPath: 'polygon(0 0, calc(100% - 20px) 0, 100% 20px, 100% 100%, 0 100%)' }}
+      >
+        <button 
+          onClick={onClose}
+          className="absolute top-6 right-6 text-neutral-500 hover:text-gold transition-colors z-10"
+        >
+          <X size={24} />
+        </button>
+
+        <div className="absolute top-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-gold to-transparent" />
+        
+        <div className="p-8 md:p-12">
+          <div className="flex flex-col md:flex-row gap-8 items-start mb-12">
+            <div className="w-32 h-32 md:w-40 md:h-40 bg-gold/10 border border-gold/30 rounded-full flex items-center justify-center relative group overflow-hidden">
+               <UserIcon size={64} className="text-gold/40 group-hover:scale-110 transition-transform duration-500" />
+               <div className="absolute inset-0 bg-gold/5 animate-pulse" />
+            </div>
+            
+            <div className="flex-1 space-y-4">
+              <div>
+                <span className="text-[10px] font-black text-gold uppercase tracking-[0.3em] font-orbitron mb-2 block">Tactical Operative Dossier</span>
+                <h2 className="font-bebas text-5xl md:text-7xl text-white tracking-widest leading-none m-0">{player.ign}</h2>
+                <div className="flex items-center gap-4 mt-2">
+                   <span className="text-neutral-400 font-bold uppercase tracking-widest text-xs flex items-center gap-2">
+                     <Shield size={14} className="text-gold/60" /> {player.role}
+                   </span>
+                   <span className="text-gold font-black uppercase tracking-widest text-[10px] border border-gold/20 px-3 py-0.5">
+                     Rank #{(player as any).rankIndex + 1}
+                   </span>
+                </div>
+              </div>
+              
+              <div className="flex flex-wrap gap-4 pt-4 border-t border-white/5">
+                {[
+                  { label: 'Division', value: player.div, icon: Globe },
+                  { label: 'Status', value: player.status || 'Active', icon: Check },
+                  { label: 'System ID', value: player.uid?.slice(-8).toUpperCase() || 'EXTERNAL', icon: Lock },
+                ].map((item, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <item.icon size={12} className="text-neutral-600" />
+                    <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">{item.label}:</span>
+                    <span className="text-[10px] font-black text-white uppercase tracking-widest">{item.value}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            
+            <div className="w-full md:w-auto bg-black/40 border border-white/5 p-6 space-y-1 text-center md:text-right">
+               <div className="text-[10px] font-black text-neutral-500 uppercase tracking-widest">Aggregate Score</div>
+               <div className="text-gold font-orbitron font-black text-4xl tracking-tighter">{(player as any).score?.toLocaleString()}</div>
+               <div className="text-[8px] text-gold/40 font-bold uppercase tracking-widest">Merit Points Locked</div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+            {[
+              { label: 'K/D Ratio', value: player.kd, trend: 'up', icon: TrendingUp, color: 'text-gold' },
+              { label: 'Matches', value: player.matches, icon: Gamepad2, color: 'text-blue-400' },
+              { label: 'Kill Count', value: player.kills, icon: Skull, color: 'text-red-500' },
+              { label: 'Win Rate', value: '72%', icon: Target, color: 'text-green-500' },
+            ].map((stat, i) => (
+              <div key={i} className="bg-white/5 border border-white/5 p-6 group hover:border-gold/20 transition-all">
+                <div className="flex justify-between items-start mb-2">
+                   <stat.icon size={20} className={stat.color} />
+                   {stat.trend && <span className="text-green-500 text-[10px] font-bold">+0.12</span>}
+                </div>
+                <div className="text-2xl font-bebas text-white tracking-widest">{stat.value}</div>
+                <div className="text-[9px] font-black text-neutral-500 uppercase tracking-widest">{stat.label}</div>
+              </div>
+            ))}
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+             <div className="lg:col-span-2 space-y-6">
+                <div className="space-y-4">
+                   <h3 className="text-white font-bebas text-2xl tracking-widest flex items-center gap-3">
+                      <Zap size={20} className="text-gold" /> Performance Matrix
+                   </h3>
+                   <div className="h-64 bg-black/40 border border-white/5 p-4 rounded-sm">
+                      <ResponsiveContainer width="100%" height="100%">
+                         <AreaChart data={(player as any).kdHistory?.map((k: number, i: number) => ({ name: `M${i+1}`, kd: k })) || []}>
+                            <defs>
+                               <linearGradient id="colorKd" x1="0" y1="0" x2="0" y2="1">
+                                  <stop offset="5%" stopColor="#D4AF37" stopOpacity={0.3}/>
+                                  <stop offset="95%" stopColor="#D4AF37" stopOpacity={0}/>
+                               </linearGradient>
+                            </defs>
+                            <Tooltip 
+                               contentStyle={{ backgroundColor: '#000', border: '1px solid #D4AF37', color: '#fff' }}
+                               itemStyle={{ color: '#D4AF37' }}
+                            />
+                            <Area type="monotone" dataKey="kd" stroke="#D4AF37" fillOpacity={1} fill="url(#colorKd)" strokeWidth={3} />
+                         </AreaChart>
+                      </ResponsiveContainer>
+                   </div>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4">
+                   <div className="bg-white/5 p-5 border-l-2 border-gold/40">
+                      <h4 className="text-[10px] font-black text-neutral-400 mb-4 uppercase tracking-[0.2em]">Map Efficiency</h4>
+                      <div className="space-y-3">
+                         {[
+                           { map: 'Erangel', kills: player.erangelKills, matches: player.erangelMatches },
+                           { map: 'Miramar', kills: player.miramarKills, matches: player.miramarMatches },
+                           { map: 'Sanhok', kills: player.sanhokKills, matches: player.sanhokMatches },
+                           { map: 'Vikendi', kills: player.vikendiKills, matches: player.vikendiMatches },
+                         ].map((m, i) => {
+                            const kills = parseInt(String(m.kills || '0'));
+                            const matches = Math.max(1, parseInt(String(m.matches || '0')));
+                            const pct = Math.min(100, Math.max(10, (kills / matches) * 20));
+                            return (
+                               <div key={i} className="space-y-1">
+                                  <div className="flex justify-between text-[8px] font-bold text-neutral-500 uppercase tracking-widest">
+                                     <span>{m.map}</span>
+                                     <span className="text-white">{kills} / {matches}</span>
+                                  </div>
+                                  <div className="h-0.5 bg-white/5 w-full rounded-full overflow-hidden">
+                                     <motion.div initial={{ width: 0 }} animate={{ width: `${pct}%` }} className="h-full bg-gold" />
+                                  </div>
+                               </div>
+                            )
+                         })}
+                      </div>
+                   </div>
+                   <div className="bg-white/5 p-5 border-l-2 border-gold/40">
+                      <h4 className="text-[10px] font-black text-neutral-400 mb-4 uppercase tracking-[0.2em]">Achievement Ribbons</h4>
+                      <div className="flex flex-wrap gap-2 text-center">
+                         {Array.isArray(player.achievements) && player.achievements.length > 0 ? (
+                           player.achievements.map((ach, i) => (
+                              <div key={i} className="px-3 py-1 bg-white/5 border border-white/5 text-[8px] font-black text-white hover:text-gold transition-colors inline-block uppercase">
+                                 {ach}
+                              </div>
+                           ))
+                         ) : (
+                           <p className="text-[9px] text-neutral-700 italic">No special commendations on record.</p>
+                         )}
+                      </div>
+                   </div>
+                </div>
+             </div>
+
+             <div className="space-y-6">
+                <h3 className="text-white font-bebas text-2xl tracking-widest flex items-center gap-3">
+                   <FileSpreadsheet size={20} className="text-gold" /> Operational Log
+                </h3>
+                <div className="space-y-2 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
+                   {player.missionLog && player.missionLog.length > 0 ? (
+                     player.missionLog.map((log: any, i: number) => (
+                        <div key={i} className="bg-white/5 border border-white/5 p-4 relative group hover:border-gold/30 transition-all">
+                           <div className="flex justify-between items-start mb-2">
+                              <span className="text-[8px] font-black text-gold uppercase tracking-[0.2em]">{log.date || 'UNSPECIFIED'}</span>
+                              <span className={`text-[7px] font-black px-1.5 py-0.5 ${log.result === 'WIN' ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'} uppercase tracking-widest`}>{log.result}</span>
+                           </div>
+                           <div className="text-sm font-bebas text-white tracking-widest group-hover:text-gold transition-colors">{log.map} Deployment</div>
+                           <div className="flex items-center gap-4 mt-2">
+                              <div className="text-[10px] text-neutral-400 font-bold uppercase"><span className="text-gold font-black">{log.kills || 0}</span> Eliminations</div>
+                              <div className="text-[10px] text-neutral-400 font-bold uppercase">Rank {log.rank || 'N/A'}</div>
+                           </div>
+                        </div>
+                     ))
+                   ) : (
+                     <div className="py-12 text-center items-center border border-dashed border-white/10 rounded-sm">
+                        <Info size={24} className="mx-auto mb-4 text-neutral-700" />
+                        <p className="text-[10px] text-neutral-700 font-bold uppercase tracking-widest">No recent operational logs detected.</p>
+                     </div>
+                   )}
+                </div>
+             </div>
+          </div>
+        </div>
+      </motion.div>
+    </motion.div>
   );
 };
 
 const RankingPage = () => {
   const [rankedPlayers, setRankedPlayers] = useState<RankingPlayer[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedPlayer, setSelectedPlayer] = useState<RankingPlayer | null>(null);
 
   useEffect(() => {
     const unsub = onSnapshot(collection(db, 'squad'), (snap) => {
@@ -6335,7 +7306,7 @@ const RankingPage = () => {
 
               {/* Stats Grid - Responsive behavior */}
               <div className="w-full grid grid-cols-4 md:contents gap-2 pt-4 md:pt-0 border-t border-white/5 md:border-t-0">
-                <div className="md:hidden col-span-1 h-px" /> {/* Offset for Rank in table mode if needed, but here we just use cols */}
+                <div className="md:hidden col-span-1 h-px" />
                 
                 <div className="md:col-span-1 text-center md:hidden lg:block">
                    <span className="hidden md:inline-block text-[8px] font-black text-gold/80 uppercase tracking-widest bg-white/5 px-2 py-0.5 rounded-[2px] border border-white/5">
@@ -6370,15 +7341,26 @@ const RankingPage = () => {
                    <div className="text-[8px] font-bold text-neutral-500">KD: {player.kd}</div>
                 </div>
 
-                <div className="col-span-2 md:col-span-2 text-right pt-2 md:pt-0">
+                <div className="col-span-2 md:col-span-2 text-right pt-2 md:pt-0 flex flex-col items-end">
                    <div className="font-orbitron font-black text-2xl md:text-xl text-gold">{Math.floor(player.score).toLocaleString()}</div>
-                   <div className="text-[8px] text-neutral-600 font-black uppercase tracking-widest">Efficiency</div>
+                   <button 
+                     onClick={() => setSelectedPlayer({...player, rankIndex: index} as any)}
+                     className="text-[8px] text-gold/40 hover:text-gold font-black uppercase tracking-widest flex items-center gap-1 transition-all"
+                   >
+                     VIEWDOSSIER <ChevronRight size={10} />
+                   </button>
                 </div>
               </div>
             </motion.div>
           ))}
         </div>
       )}
+
+      <AnimatePresence>
+        {selectedPlayer && (
+          <PlayerDossier player={selectedPlayer} onClose={() => setSelectedPlayer(null)} />
+        )}
+      </AnimatePresence>
     </div>
   );
 };
@@ -6692,6 +7674,16 @@ export default function App() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [selectedTournament, setSelectedTournament] = useState<Tournament | null>(null);
   const [orgStats, setOrgStats] = useState({ divisionCount: 5, proRosterCount: 40, foundedYear: 2019 });
+  const [branding, setBranding] = useState({ 
+    orgName: 'BTS eSports', 
+    tagLine: 'Rise Together', 
+    oversightTitle: 'Executive Oversight', 
+    commandTitle: 'Command Staff',
+    primaryColor: '#FFD700',
+    accentColor: '#FF2244'
+  });
+  const [socialLinks, setSocialLinks] = useState({ youtube: '', instagram: '', discord: '', whatsapp: '', facebook: '', twitter: '', telegram: '' });
+  const [staff, setStaff] = useState<any[]>([]);
 
   const navigate = (page: Page, data?: any) => {
     if (data) setSelectedTournament(data);
@@ -6721,9 +7713,34 @@ export default function App() {
       reportFirestoreError(error, 'get', 'site_config/org_stats', (t, m) => console.error(t, m));
     });
 
+    const unsubBranding = onSnapshot(doc(db, 'site_config', 'branding'), (docSnap) => {
+      if (docSnap.exists()) {
+        setBranding(docSnap.data() as any);
+      }
+    }, (error) => {
+      reportFirestoreError(error, 'get', 'site_config/branding', (t, m) => console.error(t, m));
+    });
+
+    const unsubStaff = onSnapshot(query(collection(db, 'staff'), orderBy('order', 'asc')), (snap) => {
+      setStaff(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    }, (error) => {
+      reportFirestoreError(error, 'get', 'staff', (t, m) => console.error(t, m));
+    });
+
+    const unsubSocial = onSnapshot(doc(db, 'site_config', 'social'), (docSnap) => {
+      if (docSnap.exists()) {
+        setSocialLinks(docSnap.data() as any);
+      }
+    }, (error) => {
+      reportFirestoreError(error, 'get', 'site_config/social', (t, m) => console.error(t, m));
+    });
+
     return () => {
       unsubscribe();
       unsubStats();
+      unsubBranding();
+      unsubStaff();
+      unsubSocial();
     };
   }, [currentPage, selectedTournament]);
 
@@ -6810,6 +7827,19 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-dark-bg font-sans selection:bg-gold selection:text-black scroll-smooth">
+      <style>
+        {`
+          :root {
+            --color-gold: ${branding.primaryColor || '#FFD700'};
+            --color-neon-red: ${branding.accentColor || '#FF2244'};
+          }
+          
+          /* Auto-generate helper colors if needed, but basic overrides cover most Tailwind utility usage of these vars */
+          ::selection {
+            background-color: ${branding.primaryColor || '#FFD700'};
+          }
+        `}
+      </style>
       <Toast 
         title={toast.title} 
         msg={toast.msg} 
@@ -6823,7 +7853,7 @@ export default function App() {
           onClick={() => setCurrentPage('home')}
           className="font-orbitron font-black text-xl tracking-[0.2em] text-gold decoration-none"
         >
-          BTS<span className="text-neon-red">⚡</span>ESPORTS
+          {branding.orgName.split(' ')[0]}<span className="text-neon-red">⚡</span>{branding.orgName.split(' ')[1] || 'ESPORTS'}
         </button>
 
         {/* Desktop Nav */}
@@ -6914,7 +7944,7 @@ export default function App() {
             exit={{ opacity: 0, x: -10 }}
             transition={{ duration: 0.3 }}
           >
-            {currentPage === 'home' && <Home onNavigate={navigate} onToast={showToast} userRole={userRole} isAdmin={isAdmin} user={user} />}
+            {currentPage === 'home' && <Home onNavigate={navigate} onToast={showToast} userRole={userRole} isAdmin={isAdmin} user={user} branding={branding} />}
             {currentPage === 'tournament' && (
               <TournamentPage onToast={showToast} user={user} onNavigate={navigate} />
             )}
@@ -6926,7 +7956,7 @@ export default function App() {
             {currentPage === 'roster' && <RosterPage onToast={showToast} />}
             {currentPage === 'recruitment' && <RecruitmentPage onToast={showToast} user={user} />}
             {currentPage === 'management' && <ManagementPage isAdmin={isAdmin} onNavigate={setCurrentPage} />}
-            {currentPage === 'about' && <AboutPage stats={orgStats} />}
+            {currentPage === 'about' && <AboutPage stats={orgStats} branding={branding} staff={staff} />}
             {currentPage === 'signin' && <SignInPage onToast={showToast} user={user} isAdmin={isAdmin} onNavigate={setCurrentPage} />}
             {currentPage === 'admin' && isAdmin && (
               <AdminDashboard 
@@ -6945,7 +7975,9 @@ export default function App() {
         <div className="container mx-auto">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-12 mb-16">
             <div className="space-y-6">
-              <div className="font-orbitron font-black text-2xl tracking-[0.2em] text-gold">BTS<span className="text-neon-red">⚡</span>ESPORTS</div>
+              <div className="font-orbitron font-black text-2xl tracking-[0.2em] text-gold">
+                {branding.orgName.split(' ')[0]}<span className="text-neon-red">⚡</span>{branding.orgName.split(' ')[1] || 'ESPORTS'}
+              </div>
               <p className="text-neutral-500 text-sm leading-relaxed">
                 India's premier competitive gaming organization. Building the next generation of professional eSports talent through infrastructure, coaching, and discipline.
               </p>
@@ -6993,22 +8025,26 @@ export default function App() {
 
           <div className="pt-12 border-t border-white/5 flex flex-col md:flex-row justify-between items-center gap-6">
             <div className="text-[10px] text-neutral-600 font-bold uppercase tracking-widest">
-              © 2025 BTS eSports. All rights reserved. Professionalism in Gaming.
+              © {new Date().getFullYear()} {branding.orgName}. All rights reserved. Professionalism in Gaming.
             </div>
             
-            <div className="flex gap-4">
+            <div className="flex gap-4 flex-wrap">
               {[
-                { icon: <Instagram size={18}/>, label: 'Instagram', url: 'https://www.instagram.com/bts__esports' },
-                { icon: <Youtube size={18}/>, label: 'YouTube', url: 'https://youtube.com/@btsesportsofficial' },
-                { icon: <MessageSquare size={18}/>, label: 'Discord', url: 'https://discord.gg/btsesports' },
-                { icon: <Smartphone size={18}/>, label: 'WhatsApp', url: '#' },
-              ].map((social, i) => (
+                { icon: <Instagram size={18}/>, label: 'Instagram', url: socialLinks.instagram },
+                { icon: <Youtube size={18}/>, label: 'YouTube', url: socialLinks.youtube },
+                { icon: <MessageSquare size={18}/>, label: 'Discord', url: socialLinks.discord },
+                { icon: <Smartphone size={18}/>, label: 'WhatsApp', url: socialLinks.whatsapp },
+                { icon: <Facebook size={18}/>, label: 'Facebook', url: socialLinks.facebook },
+                { icon: <Twitter size={18}/>, label: 'Twitter', url: socialLinks.twitter },
+                { icon: <Send size={18}/>, label: 'Telegram', url: socialLinks.telegram },
+              ].filter(s => s.url && s.url !== '#').map((social, i) => (
                 <a 
                   key={i}
-                  href={social.url}
+                  href={social.url.startsWith('http') ? social.url : `https://${social.url}`}
                   target="_blank"
                   rel="noreferrer"
                   className="w-10 h-10 border border-white/10 flex items-center justify-center text-neutral-500 hover:border-gold hover:text-gold transition-all duration-300 transform hover:-translate-y-1"
+                  title={social.label}
                 >
                   {social.icon}
                 </a>

@@ -253,6 +253,20 @@
       },
       "required": ["title"]
     },
+    "Staff": {
+      "title": "Organization Staff",
+      "description": "Leadership and support staff members.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "role": { "type": "string" },
+        "desc": { "type": "string" },
+        "image": { "type": "string" },
+        "order": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "role"]
+    },
     "SiteConfig": {
       "title": "Site Configuration",
       "description": "Global settings for the application.",
@@ -330,6 +344,10 @@
     "achievements/{achievementId}": {
       "schema": "Achievement",
       "description": "Global achievement gallery"
+    },
+    "staff/{staffId}": {
+      "schema": "Staff",
+      "description": "Leadership and support staff members"
     }
   }
 }

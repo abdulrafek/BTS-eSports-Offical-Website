@@ -18,6 +18,18 @@ export interface Player {
   youtube?: string;
   discord?: string;
   game?: string;
+  kills?: number;
+  openRoomKills?: number;
+  openRoomMatches?: number;
+  erangelKills?: number;
+  erangelMatches?: number;
+  miramarKills?: number;
+  miramarMatches?: number;
+  sanhokKills?: number;
+  sanhokMatches?: number;
+  vikendiKills?: number;
+  vikendiMatches?: number;
+  missionLog?: any[];
   mapStats?: {
     [key: string]: {
       kills: number;

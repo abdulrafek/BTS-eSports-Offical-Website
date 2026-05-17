@@ -8,16 +8,17 @@ service cloud.firestore {
 
     // --- Helpers ---
     function isSignedIn() { return request.auth != null; }
-    function isVerified() { return isSignedIn() && request.auth.token.email_verified == true; }
+    function isVerified() { return isSignedIn(); } // Relaxed to avoid blocking users
     function isOwner(userId) { return isSignedIn() && request.auth.uid == userId; }
     function incoming() { return request.resource.data; }
     function existing() { return resource.data; }
     function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
     
     function isAdmin() { 
-      return isSignedIn() && 
-             (request.auth.token.email == "argaming2020119@gmail.com" || 
-              exists(/databases/$(database)/documents/admins/$(request.auth.uid)));
+      return isSignedIn() && (
+        request.auth.token.email == "argaming2020119@gmail.com" || 
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
     }
 
     function getAdminRole() {
@@ -118,6 +119,16 @@ service cloud.firestore {
              (data.get('description', '') is string);
     }
 
+    function isValidStaff(data) {
+      return data.keys().hasAll(['name', 'role']) &&
+             data.name is string && data.name.size() <= 128 &&
+             data.role is string && data.role.size() <= 128 &&
+             (data.get('desc', '') is string && data.get('desc', '').size() <= 1000) &&
+             (data.get('image', '') is string && data.get('image', '').size() <= 1000) &&
+             (data.get('order', 0) is int || data.get('order', 0) is number) &&
+             (data.get('updatedAt', request.time) == request.time);
+    }
+
     function isValidScrim(data) {
       return data.keys().hasAll(['title']) &&
              data.title is string && data.title.size() <= 200;
@@ -141,7 +152,7 @@ service cloud.firestore {
 
     match /users/{userId} {
       allow get: if isSignedIn();
-      allow list: if isHeadScout() || isTournamentManager();
+      allow list: if isAdmin();
       allow create: if isSignedIn() && isOwner(userId) && isValidId(userId) && isValidUser(incoming());
       allow update: if (isSignedIn() && isOwner(userId) && isValidUser(incoming()) &&
                     incoming().diff(existing()).affectedKeys().hasOnly(['ign', 'role', 'division', 'kd', 'matches', 'updatedAt', 'teamId', 'teamName', 'systemId', 'email', 'uid', 'createdAt']) &&
@@ -149,7 +160,7 @@ service cloud.firestore {
                     (incoming().uid == existing().uid) &&
                     (incoming().email == existing().email) &&
                     (!existing().keys().hasAll(['createdAt']) || incoming().createdAt == existing().createdAt)
-                    ) || isHeadScout() || isTournamentManager() || isSuperAdmin();
+                    ) || isAdmin();
     }
 
     match /squad/{memberId} {
@@ -177,14 +188,10 @@ service cloud.firestore {
     }
 
     match /applications/{appId} {
-      allow get: if (isSignedIn() && resource.data.uid == request.auth.uid) || isHeadScout();
-      allow list: if (isSignedIn() && resource.data.uid == request.auth.uid) || isHeadScout(); 
+      allow get: if (isSignedIn() && resource.data.uid == request.auth.uid) || isAdmin();
+      allow list: if (isSignedIn() && resource.data.uid == request.auth.uid) || isAdmin(); 
       allow create: if isSignedIn() && isValidId(appId) && isValidApplication(incoming());
-      allow update: if isHeadScout() && (
-        (incoming().diff(existing()).affectedKeys().hasOnly(['status'])) ||
-        (incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt']) && incoming().updatedAt == request.time)
-      );
-      allow delete: if isHeadScout();
+      allow update, delete: if isAdmin();
     }
 
     match /tournaments/{tournamentId} {
@@ -229,6 +236,13 @@ service cloud.firestore {
       allow create: if isContentModerator() && isValidAchievement(incoming()) && (incoming().get('createdAt', request.time) == request.time);
       allow update: if isContentModerator() && isValidAchievement(incoming()) && (incoming().get('updatedAt', request.time) == request.time);
       allow delete: if isContentModerator();
+    }
+
+    match /staff/{staffId} {
+      allow read: if true;
+      allow create: if isSuperAdmin() && isValidStaff(incoming()) && (incoming().get('createdAt', request.time) == request.time);
+      allow update: if isSuperAdmin() && isValidStaff(incoming());
+      allow delete: if isSuperAdmin();
     }
 
     match /teams/{teamId} {

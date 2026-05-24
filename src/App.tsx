@@ -3750,17 +3750,19 @@ const AdminDashboard = ({ onToast, adminRole, user, orgStatsProp }: { onToast: (
     }
 
     try {
-      const payload = {
+      const payload: any = {
         ...tournamentForm,
-        slots: Number(tournamentForm.total),
         total: Number(tournamentForm.total),
         updatedAt: serverTimestamp()
       };
 
       if (editingTournamentId) {
+        const currentT = tournaments.find(t => t.id === editingTournamentId);
+        payload.slots = currentT ? Number(currentT.slots || 0) : 0;
         await updateDoc(doc(db, 'tournaments', editingTournamentId), payload);
         onToast('Updated', 'Tournament details saved.');
       } else {
+        payload.slots = 0;
         await addDoc(collection(db, 'tournaments'), {
           ...payload,
           createdAt: serverTimestamp()
@@ -7433,6 +7435,7 @@ const RegistrationPage = ({ tournament, user, onNavigate, onToast }: { tournamen
       await setDoc(regRef, {
         teamName: formData.teamName.trim(),
         playerName: formData.playerName.trim(),
+        leaderName: formData.playerName.trim(), // Required by Firestore Security Rules
         ign: formData.ign.trim(),
         playerId: formData.playerId.trim(),
         discordId: formData.discordId.trim(),

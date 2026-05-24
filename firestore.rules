@@ -290,5 +290,11 @@ service cloud.firestore {
       allow read: if true;
       allow write: if isAdmin();
     }
+
+    match /player_screenshot_stats/{statId} {
+      allow read: if true;
+      allow create: if isVerified();
+      allow delete: if isVerified();
+    }
   }
 }

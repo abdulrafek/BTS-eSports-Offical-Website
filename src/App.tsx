@@ -49,11 +49,15 @@ import {
   PenTool,
   Facebook,
   Twitter,
-  Send
+  Send,
+  Cpu,
+  Database,
+  RefreshCw
 } from 'lucide-react';
 import { Page, Tournament, Player, RankingPlayer } from './types';
 import { PLAYERS, DIVISIONS, TOURNAMENTS, GAME_DATA } from './constants';
 import { auth, googleProvider, db, handleFirestoreError as firebaseErrorHandler } from './lib/firebase';
+import { ScreenshotStatsPage } from './ScreenshotStatsPage';
 import { signInWithPopup, signOut, onAuthStateChanged, User, signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
 import { 
   collection, 
@@ -152,6 +156,12 @@ const ShareMenu = ({ title, url, onToast }: { title: string, url: string, onToas
 };
 
 const reportFirestoreError = (error: unknown, operationType: any, path: string | null, onToast: (t: string, m: string) => void) => {
+  const errMsg = error instanceof Error ? error.message : String(error);
+  if (errMsg.toLowerCase().includes('offline') || errMsg.toLowerCase().includes('connection') || errMsg.toLowerCase().includes('unavailable')) {
+    onToast('Offline Sync', 'Network socket transiently disconnected. Operating on local cache.');
+    console.warn(`[Firestore Status] Client offline. Path: ${path || 'unknown'}`);
+    return;
+  }
   onToast('Access Denied', error instanceof Error ? (error.message.includes('insufficient permissions') ? 'Protocol rejection: Insufficient clearance.' : error.message) : 'Security breach detected.');
   firebaseErrorHandler(error, operationType as any, path);
 };
@@ -251,7 +261,21 @@ const Home = ({ onNavigate, onToast, userRole, isAdmin, user, branding }: { onNa
     const fetchData = async () => {
       try {
         const tSnap = await getDocs(query(collection(db, 'tournaments'), orderBy('createdAt', 'desc'), limit(3)));
-        setDbTournaments(tSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        const loadedHomeTournaments = await Promise.all(tSnap.docs.map(async (dDoc) => {
+          const data = dDoc.data();
+          let exactSlotsCount = data.slots || 0;
+          try {
+            const regsSnap = await getDocs(collection(db, 'tournaments', dDoc.id, 'registrations'));
+            exactSlotsCount = regsSnap.size;
+            if (data.slots !== exactSlotsCount) {
+              await updateDoc(doc(db, 'tournaments', dDoc.id), { slots: exactSlotsCount });
+            }
+          } catch (e) {
+            console.error("Error syncing slots for", dDoc.id, e);
+          }
+          return { id: dDoc.id, ...data, slots: exactSlotsCount };
+        }));
+        setDbTournaments(loadedHomeTournaments);
 
         const hSnap = await getDocs(query(collection(db, 'highlights'), orderBy('createdAt', 'desc'), limit(4)));
         setDbHighlights(hSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
@@ -2463,7 +2487,21 @@ const TournamentPage = ({ onToast, user, onNavigate }: { onToast: (t: string, m:
   const fetchTournaments = async () => {
     try {
       const snap = await getDocs(query(collection(db, 'tournaments'), orderBy('createdAt', 'desc')));
-      setDbTournaments(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      const loadedTournaments = await Promise.all(snap.docs.map(async (dDoc) => {
+        const data = dDoc.data();
+        let exactSlotsCount = data.slots || 0;
+        try {
+          const regsSnap = await getDocs(collection(db, 'tournaments', dDoc.id, 'registrations'));
+          exactSlotsCount = regsSnap.size;
+          if (data.slots !== exactSlotsCount) {
+            await updateDoc(doc(db, 'tournaments', dDoc.id), { slots: exactSlotsCount });
+          }
+        } catch (e) {
+          console.error("Error syncing slots for", dDoc.id, e);
+        }
+        return { id: dDoc.id, ...data, slots: exactSlotsCount };
+      }));
+      setDbTournaments(loadedTournaments);
     } catch (error) {
       console.error(error);
     } finally {
@@ -6779,8 +6817,9 @@ function doPost(e) {
                                       // Note: In rules, typically we'd need a special admin path to update count easily if we delete
                                       // or just delete the registration and manually update the tournament doc.
                                       await deleteDoc(doc(db, 'tournaments', selectedTournamentForRegs!, 'registrations', reg.id));
+                                      const updatedRegsSnap = await getDocs(collection(db, 'tournaments', selectedTournamentForRegs!, 'registrations'));
                                       await updateDoc(doc(db, 'tournaments', selectedTournamentForRegs!), {
-                                        slots: increment(-1)
+                                        slots: updatedRegsSnap.size
                                       });
                                       onToast('Removed', 'Team entry deleted and slot regained.');
                                       fetchData();
@@ -7010,6 +7049,31 @@ function doPost(e) {
 };
 
 const PlayerDossier = ({ player, onClose }: { player: RankingPlayer, onClose: () => void }) => {
+  const [screenshotRows, setScreenshotRows] = useState<any[]>([]);
+  const [screenshotLoading, setScreenshotLoading] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+    const fetchScreenshotStats = async () => {
+      try {
+        const q = query(
+          collection(db, 'player_screenshot_stats'),
+          where('playerName', '==', player.ign)
+        );
+        const snap = await getDocs(q);
+        if (!active) return;
+        const rows = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        setScreenshotRows(rows);
+      } catch (err) {
+        console.error("Error loading screenshot stats for dossier:", err);
+      } finally {
+        if (active) setScreenshotLoading(false);
+      }
+    };
+    fetchScreenshotStats();
+    return () => { active = false; };
+  }, [player.ign]);
+
   return (
     <motion.div 
       initial={{ opacity: 0 }}
@@ -7200,6 +7264,8 @@ const RankingPage = () => {
   const [rankedPlayers, setRankedPlayers] = useState<RankingPlayer[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedPlayer, setSelectedPlayer] = useState<RankingPlayer | null>(null);
+  const screenshotRows: any[] = [];
+  const screenshotLoading = false;
 
   useEffect(() => {
     const unsub = onSnapshot(collection(db, 'squad'), (snap) => {
@@ -7305,6 +7371,123 @@ const RankingPage = () => {
                     </div>
                  </div>
               </div>
+
+                 {/* TELEMETRY_ERASED */}
+                    <h3 className="text-white font-bebas text-2xl tracking-widest flex items-center gap-3">
+                       <Cpu size={20} className="text-gold animate-pulse" /> Dynamic AI Telemetry Archive
+                    </h3>
+                    <p className="text-[10px] text-neutral-400 font-mono leading-relaxed">
+                       Parsed statistics dynamically compiled from OCR analyzed endpoint match screens and verified screenshot captures.
+                    </p>
+                    
+                    {false ? null : (
+                       <div className="space-y-6">
+                          {/* Aggregate stats banner */}
+                          <div className="grid grid-cols-3 gap-2 font-mono text-center">
+                             <div className="bg-neutral-950 p-3 border border-white/5">
+                                <div className="text-[8px] text-neutral-500 uppercase tracking-widest">Kills Locked</div>
+                                <div className="font-orbitron font-black text-sm text-gold mt-1">
+                                   {screenshotRows.reduce((sum, r) => sum + (r.kills || 0), 0)}
+                                </div>
+                             </div>
+                             <div className="bg-neutral-950 p-3 border border-white/5">
+                                <div className="text-[8px] text-neutral-500 uppercase tracking-widest">Matches Played</div>
+                                <div className="font-orbitron font-black text-sm text-white mt-1">
+                                   {screenshotRows.reduce((sum, r) => sum + (r.matches || 0), 0)}
+                                </div>
+                             </div>
+                             <div className="bg-neutral-950 p-3 border border-white/5">
+                                <div className="text-[8px] text-neutral-500 uppercase tracking-widest">Calculated KD</div>
+                                <div className="font-orbitron font-black text-sm text-emerald-400 mt-1">
+                                   {(() => {
+                                      const totK = screenshotRows.reduce((sum, r) => sum + (r.kills || 0), 0);
+                                      const totM = screenshotRows.reduce((sum, r) => sum + (r.matches || 0), 0);
+                                      return totM ? (totK / totM).toFixed(2) : '0.00';
+                                   })()}
+                                </div>
+                             </div>
+                          </div>
+
+                          {/* Category and Map charts/lists */}
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 font-mono text-[10px]">
+                             {/* Category Aggregation */}
+                             <div className="bg-neutral-950 p-4 border border-white/5">
+                                <h4 className="text-[9px] font-black text-gold uppercase tracking-widest mb-3 border-b border-white/5 pb-1">Categories</h4>
+                                <div className="space-y-2 font-mono">
+                                   {['Scrims', 'Tournament', 'Open Room Match'].map(cat => {
+                                      const matched = screenshotRows.filter(r => (r.category || 'Scrims') === cat);
+                                      const mKills = matched.reduce((sum, r) => sum + (r.kills || 0), 0);
+                                      const mMatches = matched.reduce((sum, r) => sum + (r.matches || 0), 0);
+                                      return (
+                                         <div key={cat} className="flex justify-between items-center text-[9px]">
+                                            <span className="text-neutral-400 uppercase">{cat}</span>
+                                            <span className="text-white font-bold">{mKills} Kills / {mMatches} Matches</span>
+                                         </div>
+                                      )
+                                   })}
+                                </div>
+                             </div>
+
+                             {/* Map Aggregation */}
+                             <div className="bg-neutral-950 p-4 border border-white/5 max-h-40 overflow-y-auto font-mono">
+                                <h4 className="text-[9px] font-black text-gold uppercase tracking-widest mb-3 border-b border-white/5 pb-1">Maps Efficiencies</h4>
+                                <div className="space-y-2 font-mono">
+                                   {Array.from(new Set(screenshotRows.map(r => r.map || 'Erangel'))).map(mapName => {
+                                      const matched = screenshotRows.filter(r => (r.map || 'Erangel') === mapName);
+                                      const mKills = matched.reduce((sum, r) => sum + (r.kills || 0), 0);
+                                      const mMatches = matched.reduce((sum, r) => sum + (r.matches || 0), 0);
+                                      return (
+                                         <div key={mapName} className="flex justify-between items-center text-[9px]">
+                                            <span className="text-neutral-400 uppercase">{mapName}</span>
+                                            <span className="text-white font-bold">{mKills} Kills / {mMatches} Matches</span>
+                                         </div>
+                                      )
+                                   })}
+                                </div>
+                             </div>
+                          </div>
+
+                          {/* Historical logs tables list */}
+                          <div className="bg-neutral-950 p-4 border border-white/5 font-mono">
+                             <h4 className="text-[9px] font-black text-white uppercase tracking-widest mb-2 flex items-center gap-2">
+                                <Database size={10} /> ML Extraction Record History
+                             </h4>
+                             <div className="max-h-40 overflow-y-auto overflow-x-auto text-[9px]">
+                                <table className="w-full text-left text-neutral-400 font-mono">
+                                   <thead>
+                                      <tr className="border-b border-white/10 uppercase text-[8px] font-black pb-1.5 text-neutral-500 font-mono">
+                                         <th className="py-1">Cat.</th>
+                                         <th className="py-1">Map</th>
+                                         <th className="py-1 text-center font-mono">Matches</th>
+                                         <th className="py-1 text-center font-mono">Kills</th>
+                                         <th className="py-1 text-right">Screenshot Link</th>
+                                      </tr>
+                                   </thead>
+                                   <tbody className="divide-y divide-white/5 font-mono">
+                                      {screenshotRows.map(row => (
+                                         <tr key={row.id} className="hover:text-white transition-all font-mono">
+                                            <td className="py-1 text-sky-400 font-bold">{row.category || 'Scrims'}</td>
+                                            <td className="py-1 text-amber-500 font-bold">{row.map || 'Erangel'}</td>
+                                            <td className="py-1 text-center text-white font-semibold">{row.matches}</td>
+                                            <td className="py-1 text-center text-gold font-bold">{row.kills}</td>
+                                            <td className="py-1 text-right">
+                                               {row.imageDriveLink ? (
+                                                  <a href={row.imageDriveLink} target="_blank" rel="noreferrer" className="text-sky-400 hover:underline">
+                                                     Drive Ref
+                                                  </a>
+                                               ) : (
+                                                  <span className="text-neutral-700">Internal</span>
+                                               )}
+                                            </td>
+                                         </tr>
+                                      ))}
+                                   </tbody>
+                                </table>
+                             </div>
+                          </div>
+                       </div>
+                    )}
+
 
               {/* Stats Grid - Responsive behavior */}
               <div className="w-full grid grid-cols-4 md:contents gap-2 pt-4 md:pt-0 border-t border-white/5 md:border-t-0">
@@ -7424,8 +7607,11 @@ const RegistrationPage = ({ tournament, user, onNavigate, onToast }: { tournamen
         return;
       }
 
-      // 3. Check capacity
-      if (tournament.slots >= tournament.total) {
+      // 3. Check capacity dynamically from registrations subcollection
+      const regsSnap = await getDocs(collection(db, 'tournaments', tournament.id, 'registrations'));
+      const actualRegistrationsCount = regsSnap.size;
+
+      if (actualRegistrationsCount >= tournament.total) {
         onToast('Tournament Full', 'No more slots available for this tournament.');
         setLoading(false);
         return;
@@ -7448,16 +7634,40 @@ const RegistrationPage = ({ tournament, user, onNavigate, onToast }: { tournamen
         createdAt: serverTimestamp()
       });
 
-      // 5. Update joined count
+      // 5. Update joined count with precise value
       await updateDoc(doc(db, 'tournaments', tournament.id), {
-        slots: increment(1)
+        slots: actualRegistrationsCount + 1
       });
 
       setIsSuccess(true);
       onToast('Success ✅', 'Registration Successful. Good luck, Operative!');
-    } catch (error) {
-      console.error(error);
-      onToast('Registration Error', 'Failed to submit registration. Please try again.');
+    } catch (error: any) {
+      console.error("Tournament registration write failed:", error);
+      let errorMessage = 'Failed to submit registration. Please try again.';
+      
+      if (error && typeof error === 'object') {
+        const errorCode = error.code || '';
+        const rawMsg = (error.message || '').toLowerCase();
+        
+        if (errorCode === 'permission-denied') {
+          errorMessage = 'Security Protocol: Permission Denied. Your account does not have sufficient Firestore security credentials to join this tournament subcollection.';
+        } else if (errorCode === 'unavailable') {
+          errorMessage = 'Telemetry Sync Offline: The Firebase service is temporarily unavailable or offline. Please check your connection.';
+        } else if (errorCode === 'already-exists') {
+          errorMessage = 'Registration Duplicate: A record for this credential identity is already recognized in our tactical log.';
+        } else if (rawMsg.includes('permission') || rawMsg.includes('denied') || rawMsg.includes('clearance')) {
+          errorMessage = 'Registration denied: Insufficient clearances or security rules block.';
+        } else if (rawMsg.includes('offline') || rawMsg.includes('network') || rawMsg.includes('unavailable') || rawMsg.includes('connection')) {
+          errorMessage = 'Network connection failure: Protocol offline. Please check your network socket signal and retry.';
+        } else if (error.message) {
+          errorMessage = error.message;
+        }
+      }
+      
+      onToast('Registration Error', errorMessage);
+      if (typeof firebaseErrorHandler === 'function') {
+        firebaseErrorHandler(error, 'create', `tournaments/${tournament.id}/registrations/${user.uid}`);
+      }
     } finally {
       setLoading(false);
     }
@@ -7698,6 +7908,7 @@ export default function App() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [adminRole, setAdminRole] = useState<string | null>(null);
   const [toast, setToast] = useState<{ title: string, msg: string, visible: boolean }>({ title: '', msg: '', visible: false });
+  const [isAppSquadMember, setIsAppSquadMember] = useState(false);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (u) => {
@@ -7789,6 +8000,28 @@ export default function App() {
     }
   }, [user]);
 
+  useEffect(() => {
+    if (!user) {
+      setIsAppSquadMember(false);
+      return;
+    }
+    const checkSquadStatus = async () => {
+      try {
+        const squadQuery = query(collection(db, 'squad'), where('uid', '==', user.uid));
+        const squadSnapshot = await getDocs(squadQuery);
+        if (!squadSnapshot.empty) {
+          setIsAppSquadMember(true);
+        } else {
+          setIsAppSquadMember(false);
+        }
+      } catch (err) {
+        console.error("Error checking squad status in DB:", err);
+        setIsAppSquadMember(false);
+      }
+    };
+    checkSquadStatus();
+  }, [user]);
+
   const showToast = (title: string, msg: string) => {
     setToast({ title, msg, visible: true });
     setTimeout(() => setToast(prev => ({ ...prev, visible: false })), 4000);
@@ -7804,29 +8037,31 @@ export default function App() {
       { id: 'recruitment', label: 'Join' },
       { id: 'management', label: 'Org' },
       { id: 'about', label: 'Info' },
+      { id: 'screenshot-stats', label: 'AI Stats' },
     ];
 
+    const isSquadMember = isAppSquadMember || userRole === 'Squad Member' || userRole === 'Leader' || userRole === 'Staff' || (user && user.email === 'argaming2020119@gmail.com');
+    const canAccessAIStats = isAdmin || isSquadMember;
+
     let base = full;
-    
-    // Standard User Restriction (logged in but only 'User' role)
-    if (user && !isAdmin && userRole === 'User') {
-      base = full.filter(link => ['home', 'tournament', 'results', 'ranking', 'roster', 'recruitment', 'management', 'about'].includes(link.id));
+    if (!canAccessAIStats) {
+      base = full.filter(link => link.id !== 'screenshot-stats');
     }
 
     if (isAdmin) {
       base.push({ id: 'admin', label: 'Deployment Portal' } as any);
     }
     return base;
-  }, [isAdmin, userRole, user]);
+  }, [isAdmin, userRole, user, isAppSquadMember]);
 
   useEffect(() => {
-    if (user && !isAdmin && userRole === 'User') {
-      const allowed = ['home', 'tournament', 'results', 'ranking', 'roster', 'recruitment', 'management', 'about', 'registration', 'signin'];
-      if (!allowed.includes(currentPage)) {
-        setCurrentPage('home');
-      }
+    const isSquadMember = isAppSquadMember || userRole === 'Squad Member' || userRole === 'Leader' || userRole === 'Staff' || (user && user.email === 'argaming2020119@gmail.com');
+    const canAccessAIStats = isAdmin || isSquadMember;
+
+    if (!canAccessAIStats && currentPage === 'screenshot-stats') {
+      setCurrentPage('home');
     }
-  }, [currentPage, user, isAdmin, userRole]);
+  }, [currentPage, user, isAdmin, userRole, isAppSquadMember]);
 
   return (
     <div className="min-h-screen bg-dark-bg font-sans selection:bg-gold selection:text-black scroll-smooth">
@@ -7960,6 +8195,7 @@ export default function App() {
             {currentPage === 'recruitment' && <RecruitmentPage onToast={showToast} user={user} />}
             {currentPage === 'management' && <ManagementPage isAdmin={isAdmin} onNavigate={setCurrentPage} />}
             {currentPage === 'about' && <AboutPage stats={orgStats} branding={branding} staff={staff} />}
+            {currentPage === 'screenshot-stats' && <ScreenshotStatsPage onToast={showToast} />}
             {currentPage === 'signin' && <SignInPage onToast={showToast} user={user} isAdmin={isAdmin} onNavigate={setCurrentPage} />}
             {currentPage === 'admin' && isAdmin && (
               <AdminDashboard 

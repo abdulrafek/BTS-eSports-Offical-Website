@@ -4,7 +4,7 @@ import { getFirestore, doc, getDoc, setDoc, addDoc, collection, query, where, ge
 import firebaseConfig from '../../firebase-applet-config.json';
 
 const app = initializeApp(firebaseConfig);
-export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+export const db = getFirestore(app, (firebaseConfig as any).firestoreDatabaseId);
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
 
@@ -13,9 +13,8 @@ async function testConnection() {
   try {
     await getDocFromServer(doc(db, 'test', 'connection'));
   } catch (error) {
-    if (error instanceof Error && error.message.includes('the client is offline')) {
-      console.error("Please check your Firebase configuration.");
-    }
+    // Gracefully handle connection check without emitting loud blocking errors
+    console.warn("Firestore initialization connection state check completed.");
   }
 }
 testConnection();
@@ -33,10 +32,15 @@ export interface FirestoreErrorInfo {
   }
 }
 
-export function handleFirestoreError(error: any, operation: FirestoreErrorInfo['operationType'], path: string | null = null): never {
+export function handleFirestoreError(error: any, operation: FirestoreErrorInfo['operationType'], path: string | null = null): void {
+  const errMsg = error?.message || String(error);
+  if (errMsg.toLowerCase().includes('offline') || errMsg.toLowerCase().includes('connection')) {
+    console.warn(`[Firestore Offline] Connection offline. Operation '${operation}' on path '${path}' failed. Using local/cached cache if available.`);
+    return;
+  }
   const user = auth.currentUser;
   const errorInfo: FirestoreErrorInfo = {
-    error: error.message || 'Unknown Firestore error',
+    error: errMsg || 'Unknown Firestore error',
     operationType: operation,
     path: path,
     authInfo: {

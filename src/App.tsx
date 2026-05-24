@@ -33,7 +33,7 @@ import {
   Copy,
   LogOut,
   Plus,
-  AlertCircle,
+  ArrowRight,
   Search,
   Shield,
   ShieldAlert,
@@ -175,7 +175,7 @@ const Home = ({ onNavigate, onToast, userRole, isAdmin, user, branding }: { onNa
   const [loading, setLoading] = useState(true);
   const [currentSlide, setCurrentSlide] = useState(0);
   const [dbAchievements, setDbAchievements] = useState<any[]>([]);
-  const [socialLinks, setSocialLinks] = useState<{ youtube: string, instagram: string }>({ youtube: '', instagram: '' });
+  const [socialLinks, setSocialLinks] = useState<any>({});
 
   useEffect(() => {
     // Listen for live status
@@ -184,54 +184,66 @@ const Home = ({ onNavigate, onToast, userRole, isAdmin, user, branding }: { onNa
         setLiveConfig(doc.data() as any);
       }
     }, (error) => {
-      console.error("Live Config Error:", error);
-      firebaseErrorHandler(error, 'get', 'site_config/youtube_live');
+      // Silently ignore if not found or permissions
     });
 
     return () => unsubLive();
   }, []);
 
-  const heroSlides = useMemo(() => {
-    const isStandard = user && !isAdmin && userRole === 'User';
+  const [dbPlayers, setDbPlayers] = useState<any[]>([]);
 
+  useEffect(() => {
+    const q = query(collection(db, 'squad'), orderBy('score', 'desc'), limit(5));
+    const unsub = onSnapshot(q, (snap) => {
+      setDbPlayers(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    }, (err) => {
+       // Fallback or ignore
+    });
+    return () => unsub();
+  }, []);
+
+  const heroSlides = useMemo(() => {
     return [
       {
         tag: branding.tagLine || "🔥 India's Premier eSports Organization",
-        title: [branding.orgName.split(' ')[0] || "Rise.", branding.orgName.split(' ')[1] || "Dominate.", branding.orgName.split(' ')[2] || "Conquer."],
-        desc: `${branding.orgName} is building the next generation of competitive gaming talent. Join us and compete at the highest level.`,
+        title: ["RISE.", "DOMINATE.", "CONQUER."],
+        desc: `${branding.orgName} is building the next generation of competitive gaming talent. Join the ranks of elite tactical athletes.`,
         btn1: "Join Now",
         btn2: "Tournaments",
         nav1: "recruitment",
         nav2: "tournament",
-        accent: "gold"
+        accent: "gold",
+        bg: "https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&q=80&w=1600"
       },
       {
         tag: "🏆 Champion Mindset",
-        title: ["Train.", "Win.", "Repeat."],
-        desc: "Our elite divisions are constantly scouting for the best talent in the region. Are you ready for the big leagues?",
-        btn1: isStandard ? "Apply Now" : "View Roster",
-        btn2: isStandard ? "Latest Events" : "Leaderboard",
-        nav1: isStandard ? "recruitment" : "roster",
-        nav2: isStandard ? "tournament" : "ranking",
-        accent: "neon-red"
+        title: ["TRAIN.", "WIN.", "REPEAT."],
+        desc: "Our elite divisions are scouting for the best talent in the region. Are you ready for the big leagues?",
+        btn1: "View Roster",
+        btn2: "Leaderboard",
+        nav1: "roster",
+        nav2: "ranking",
+        accent: "neon-red",
+        bg: "https://images.unsplash.com/photo-1511512578047-dfb367046420?auto=format&fit=crop&q=80&w=1600"
       },
       {
-        tag: "🎮 Tactical Dominance",
-        title: ["Aim.", "Shoot.", "Succeed."],
-        desc: "From BGMI and PUBG to Valorant and CODM, we are expanding our tactical footprint across all major competitive titles.",
-        btn1: isStandard ? "Join Squad" : "Latest Results",
-        btn2: "Recruitment",
-        nav1: isStandard ? "recruitment" : "results",
-        nav2: "recruitment",
-        accent: "blue-500"
+        tag: "🎮 Tactical Grid",
+        title: ["AIM.", "SHOOT.", "SUCCEED."],
+        desc: "From Battle Royales to Tactical Shooters, we are expanding our grid across all major competitive architectures.",
+        btn1: "Join Squad",
+        btn2: "Results",
+        nav1: "recruitment",
+        nav2: "results",
+        accent: "gold",
+        bg: "https://images.unsplash.com/photo-1552820728-8b83bb6b773f?auto=format&fit=crop&q=80&w=1600"
       }
     ];
-  }, [user, isAdmin, userRole]);
+  }, [branding]);
 
   useEffect(() => {
     const timer = setInterval(() => {
       setCurrentSlide((prev) => (prev + 1) % heroSlides.length);
-    }, 5000);
+    }, 6000);
     return () => clearInterval(timer);
   }, [heroSlides]);
 
@@ -291,7 +303,26 @@ const Home = ({ onNavigate, onToast, userRole, isAdmin, user, branding }: { onNa
 
   return (
     <div className="relative pt-16">
-      {/* Live Stream Banner */}
+      {/* News Ticker */}
+      <div className="bg-gold text-black py-2 overflow-hidden border-y border-black/10 z-[50]">
+        <motion.div 
+          animate={{ x: [0, -1000] }}
+          transition={{ duration: 40, repeat: Infinity, ease: "linear" }}
+          className="flex whitespace-nowrap gap-12 font-black text-[10px] uppercase tracking-[0.3em]"
+        >
+          {Array(5).fill([
+            "Official Announcement: BTS Roster expansion is active",
+            "Next Tournament: Prime Series S2 starts in 48 hours",
+            "Recruitment: Division 7 is scouting for tactical leads",
+            "Store: Limited Edition Command Jersey now available"
+          ]).flat().map((text, i) => (
+            <span key={i} className="flex items-center gap-2">
+              <Zap size={12} fill="currentColor" /> {text}
+            </span>
+          ))}
+        </motion.div>
+      </div>
+
       <AnimatePresence>
         {liveConfig?.isLive && liveConfig.videoId && (
           <motion.div 
@@ -339,326 +370,196 @@ const Home = ({ onNavigate, onToast, userRole, isAdmin, user, branding }: { onNa
         )}
       </AnimatePresence>
 
-      {/* Hero Section */}
-      <section className="relative min-h-[calc(100vh-64px)] overflow-hidden flex items-center px-4 md:px-8">
-        <div className="absolute inset-0 z-0">
-          <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_60%_at_50%_40%,rgba(255,215,0,0.06)_0%,transparent_70%)]" />
-          <div className="absolute inset-0 bg-[radial-gradient(ellipse_40%_40%_at_80%_80%,rgba(255,34,68,0.08)_0%,transparent_60%)]" />
-          <div className="absolute inset-0 opacity-[0.02] pointer-events-none" 
-               style={{ backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 40px, #FFD700 40px, #FFD700 41px), repeating-linear-gradient(90deg, transparent, transparent 40px, #FFD700 40px, #FFD700 41px)' }} />
-        </div>
+      <section className="relative min-h-[90vh] flex items-center overflow-hidden">
+        {/* Background Images for Slides */}
+        <AnimatePresence mode="wait">
+          <motion.div 
+            key={currentSlide}
+            initial={{ opacity: 0, scale: 1.1 }}
+            animate={{ opacity: 0.3, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.9 }}
+            transition={{ duration: 1.5 }}
+            className="absolute inset-0 z-0"
+          >
+            <img 
+              src={heroSlides[currentSlide].bg} 
+              className="w-full h-full object-cover"
+              alt="Slide Background"
+            />
+            <div className="absolute inset-0 bg-gradient-to-r from-black via-black/80 to-transparent" />
+            <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent" />
+          </motion.div>
+        </AnimatePresence>
 
-        <div className="container mx-auto grid md:grid-cols-2 gap-12 items-center relative z-10">
+        <div className="container mx-auto px-4 md:px-12 relative z-10">
           <AnimatePresence mode="wait">
             <motion.div
               key={currentSlide}
-              initial={{ opacity: 0, x: -30 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: 30 }}
-              transition={{ duration: 0.6 }}
+              initial={{ opacity: 0, y: 40 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -40 }}
+              transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
+              className="max-w-4xl"
             >
-              <div className={`inline-block border text-[11px] font-bold tracking-widest px-4 py-1 mb-6 uppercase ${
-                heroSlides[currentSlide].accent === 'gold' ? 'bg-gold/15 border-gold/40 text-gold' : 
-                heroSlides[currentSlide].accent === 'neon-red' ? 'bg-neon-red/15 border-neon-red/40 text-neon-red' : 
-                'bg-blue-500/15 border-blue-500/40 text-blue-400'
-              }`}>
-                {heroSlides[currentSlide].tag}
+              <div className="flex items-center gap-4 mb-8">
+                <div className="h-[2px] w-12 bg-gold" />
+                <span className="text-gold text-xs font-black uppercase tracking-[0.5em]">{heroSlides[currentSlide].tag}</span>
               </div>
-              <h1 className="font-bebas text-7xl md:text-9xl leading-[0.9] tracking-tight mb-6">
-                <span className="block text-white">{heroSlides[currentSlide].title[0]}</span>
-                <span className={`block ${heroSlides[currentSlide].accent === 'gold' ? 'text-gold' : heroSlides[currentSlide].accent === 'neon-red' ? 'text-neon-red' : 'text-blue-500'}`}>
-                  {heroSlides[currentSlide].title[1]}
-                </span>
-                <span className="block text-white">{heroSlides[currentSlide].title[2]}</span>
-              </h1>
-              <p className="text-neutral-400 text-lg md:text-xl leading-relaxed mb-8 max-w-lg">
-                {heroSlides[currentSlide].desc}
-              </p>
-              <div className="flex gap-4 flex-wrap">
-                <button 
-                  onClick={() => onNavigate(heroSlides[currentSlide].nav1 as Page)}
-                  className={`btn-clip px-8 py-3.5 font-bold tracking-widest uppercase transition-all transform hover:-translate-y-1 ${
-                    heroSlides[currentSlide].accent === 'gold' ? 'bg-gold text-black hover:bg-gold-light' : 
-                    heroSlides[currentSlide].accent === 'neon-red' ? 'bg-neon-red text-white hover:bg-neon-red/80' : 
-                    'bg-blue-600 text-white hover:bg-blue-500'
-                  }`}
-                >
-                  {heroSlides[currentSlide].btn1}
-                </button>
-                <button 
-                  onClick={() => onNavigate(heroSlides[currentSlide].nav2 as Page)}
-                  className={`btn-clip border px-8 py-3.5 font-bold tracking-widest uppercase transition-all transform hover:-translate-y-1 ${
-                    heroSlides[currentSlide].accent === 'gold' ? 'border-gold text-gold hover:bg-gold/10' : 
-                    heroSlides[currentSlide].accent === 'neon-red' ? 'border-neon-red text-neon-red hover:bg-neon-red/10' : 
-                    'border-blue-500 text-blue-500 hover:bg-blue-500/10'
-                  }`}
-                >
-                  {heroSlides[currentSlide].btn2}
-                </button>
+
+              <div className="space-y-4 mb-12">
+                {heroSlides[currentSlide].title.map((word, i) => (
+                  <motion.h1 
+                    key={i}
+                    initial={{ x: -100, opacity: 0 }}
+                    animate={{ x: 0, opacity: 1 }}
+                    transition={{ delay: 0.2 + (i * 0.1), duration: 0.8 }}
+                    className="font-bebas text-[12vw] md:text-[8vw] leading-[0.85] tracking-tight uppercase text-white"
+                  >
+                    {word}
+                  </motion.h1>
+                ))}
+              </div>
+
+              <div className="grid md:grid-cols-2 gap-12 items-end">
+                <div className="space-y-8">
+                   <p className="text-neutral-300 text-lg md:text-xl leading-relaxed max-w-md border-l-2 border-gold/20 pl-6 italic">
+                     {heroSlides[currentSlide].desc}
+                   </p>
+                   <div className="flex gap-4">
+                      <button 
+                        onClick={() => onNavigate(heroSlides[currentSlide].nav1 as Page)}
+                        className="btn-clip bg-gold text-black px-10 py-4 font-black uppercase tracking-widest text-xs hover:bg-white transition-all flex items-center gap-2"
+                      >
+                         {heroSlides[currentSlide].btn1} <ChevronRight size={16} />
+                      </button>
+                      <button 
+                        onClick={() => onNavigate(heroSlides[currentSlide].nav2 as Page)}
+                        className="btn-clip border border-white/20 text-white px-10 py-4 font-black uppercase tracking-widest text-xs hover:border-gold hover:text-gold transition-all"
+                      >
+                         {heroSlides[currentSlide].btn2}
+                      </button>
+                   </div>
+                </div>
+
+                <div className="hidden md:flex gap-4 pb-4">
+                  {heroSlides.map((_, i) => (
+                    <button 
+                      key={i}
+                      onClick={() => setCurrentSlide(i)}
+                      className="group flex flex-col items-start gap-2"
+                    >
+                      <span className={`text-[10px] font-black transition-colors ${currentSlide === i ? 'text-gold' : 'text-neutral-600'}`}>0{i + 1}</span>
+                      <div className={`h-[2px] transition-all duration-500 ${currentSlide === i ? 'w-16 bg-gold' : 'w-8 bg-neutral-800 group-hover:w-12 group-hover:bg-neutral-600'}`} />
+                    </button>
+                  ))}
+                </div>
               </div>
             </motion.div>
           </AnimatePresence>
-
-          <div className="space-y-8">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.8, delay: 0.2 }}
-              className="grid grid-cols-2 sm:grid-cols-4 gap-4"
-            >
-              {[
-                { num: '40+', label: 'Active Players', glow: true },
-                { num: '5', label: 'Divisions', glow: false },
-                { num: '30+', label: 'Tournaments Hosted', glow: false },
-                { num: 'TOP 10', label: 'Global Rank', glow: false },
-              ].map((stat, i) => (
-                <div 
-                  key={i} 
-                  className={`bg-white/5 border border-gold/15 p-6 relative overflow-hidden group hover:border-gold/40 transition-colors ${stat.glow ? 'shadow-[0_0_20px_rgba(255,215,0,0.1)]' : ''}`}
-                  style={{ clipPath: 'polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%)' }}
-                >
-                  <div className="absolute top-0 left-0 w-full h-[2px] bg-gradient-to-r from-gold to-transparent" />
-                  <span className="block font-orbitron font-black text-3xl text-gold mb-1">{stat.num}</span>
-                  <span className="block text-neutral-500 text-[10px] uppercase tracking-widest font-bold">{stat.label}</span>
-                </div>
-              ))}
-            </motion.div>
-
-            {/* Slide Indicators */}
-            <div className="flex gap-2 justify-center md:justify-start">
-              {heroSlides.map((_, i) => (
-                <button
-                  key={i}
-                  onClick={() => setCurrentSlide(i)}
-                  className={`h-1.5 transition-all outline-none ${currentSlide === i ? 'w-12 bg-gold' : 'w-4 bg-white/20 hover:bg-white/40'}`}
-                />
-              ))}
-            </div>
-          </div>
         </div>
       </section>
 
-      {/* Games Section */}
-      <section className="py-24 bg-gold-[0.02] border-y border-gold/5 px-4 overflow-hidden relative">
-        <div className="container mx-auto relative z-10">
-          <SectionHeader tag="Multi-Game Ecosystem" title="Strategic" goldSpan="Expansion" sub="We are not just a one-game org. BTS is diversifying across multiple competitive architectures to dominate the Indian eSports scene." />
-          
-          <div className="relative">
-            {/* Desktop View: Grid */}
-            <div className="hidden md:grid grid-cols-2 lg:grid-cols-5 gap-6">
-              {Object.keys(GAME_DATA).map((gameKey, i) => {
-                const icons: Record<string, { icon: React.ReactNode, desc: string, status: string }> = {
-                  'BGMI': { icon: <Gamepad2 className="text-gold" size={48} />, desc: 'Mobile Battle Royale Excellence', status: 'Active' },
-                  'PUBG': { icon: <Gamepad2 className="text-gold" size={48} />, desc: 'Global Battle Royale Dominance', status: 'Active' },
-                  'Free Fire': { icon: <Flame className="text-orange-500" size={48} />, desc: 'Fast-Paced Mobile Survival', status: 'Active' },
-                  'Valorant': { icon: <Target className="text-blue-400" size={48} />, desc: 'Tactical Team-Based Shooter', status: 'Expanding' },
-                  'COD': { icon: <Smartphone className="text-purple-500" size={48} />, desc: 'Fast-Paced Tactical Warfare', status: 'Active' },
-                };
-                const game = icons[gameKey] || { icon: <Gamepad2 className="text-gold" size={48} />, desc: 'Competitive eSports Title', status: 'Active' };
-                return (
-                  <motion.div
-                    key={i}
-                    whileHover={{ y: -5, borderColor: 'rgba(212,175,55,0.4)' }}
-                    className="bg-neutral-900 border border-white/5 p-8 relative group overflow-hidden cursor-pointer h-full"
-                    onClick={() => onNavigate('tournament')}
-                  >
-                    <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-                       {game.icon}
-                    </div>
-                    <div className="mb-6">{game.icon}</div>
-                    <h3 className="font-bebas text-3xl text-white tracking-widest mb-2 group-hover:text-gold transition-colors">{gameKey}</h3>
-                    <p className="text-neutral-500 text-xs mb-6 font-medium leading-relaxed">{game.desc}</p>
-                    <div className="flex justify-between items-center">
-                      <span className={`text-[9px] uppercase font-black tracking-widest px-3 py-1 border ${
-                        game.status === 'Active' ? 'bg-green-500/10 text-green-400 border-green-500/30' : 
-                        game.status === 'Expanding' ? 'bg-blue-500/10 text-blue-400 border-blue-500/30' :
-                        'bg-neutral-800 text-neutral-500 border-white/10'
-                      }`}>
-                        {game.status}
-                      </span>
-                    </div>
-                    <div className="absolute bottom-0 left-0 w-full h-[2px] bg-gradient-to-r from-transparent via-gold to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                  </motion.div>
-                );
-              })}
-            </div>
+      {/* Games & Stats Summary */}
+      <section className="py-24 bg-neutral-950 px-4 relative">
+        <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-gold/30 to-transparent" />
+        <div className="container mx-auto">
+          <SectionHeader 
+            tag="Game Sectors" 
+            title="Tactical" 
+            goldSpan="Divisions" 
+            sub="We maintain elite rosters across the most competitive titles in the Indian eSports landscape."
+          />
 
-            {/* Mobile View: Auto-sliding Marquee */}
-            <div className="md:hidden overflow-hidden py-4">
-              <motion.div 
-                className="flex gap-4"
-                animate={{
-                  x: [0, -1000]
-                }}
-                transition={{
-                  x: {
-                    repeat: Infinity,
-                    repeatType: "loop",
-                    duration: 30,
-                    ease: "linear",
-                  },
-                }}
-                style={{ width: 'fit-content' }}
-              >
-                {[...Object.keys(GAME_DATA), ...Object.keys(GAME_DATA)].map((gameKey, i) => {
-                  const icons: Record<string, { icon: React.ReactNode, desc: string, status: string }> = {
-                    'BGMI': { icon: <Gamepad2 className="text-gold" size={48} />, desc: 'Mobile Battle Royale Excellence', status: 'Active' },
-                    'PUBG': { icon: <Gamepad2 className="text-gold" size={48} />, desc: 'Global Battle Royale Dominance', status: 'Active' },
-                    'Free Fire': { icon: <Flame className="text-orange-500" size={48} />, desc: 'Fast-Paced Mobile Survival', status: 'Active' },
-                    'Valorant': { icon: <Target className="text-blue-400" size={48} />, desc: 'Tactical Team-Based Shooter', status: 'Expanding' },
-                    'COD': { icon: <Smartphone className="text-purple-500" size={48} />, desc: 'Fast-Paced Tactical Warfare', status: 'Active' },
-                  };
-                  const game = icons[gameKey] || { icon: <Gamepad2 className="text-gold" size={48} />, desc: 'Competitive eSports Title', status: 'Active' };
-                  return (
-                    <div
-                      key={i}
-                      className="bg-neutral-900 border border-white/5 p-6 relative min-w-[240px] flex flex-col justify-between"
-                      onClick={() => onNavigate('tournament')}
-                    >
-                      <div className="mb-4">{game.icon}</div>
-                      <h3 className="font-bebas text-2xl text-white tracking-widest mb-1">{gameKey}</h3>
-                      <p className="text-neutral-500 text-[10px] mb-4 font-medium line-clamp-2">{game.desc}</p>
-                      <span className={`text-[8px] uppercase font-black tracking-widest px-2 py-0.5 border self-start ${
-                        game.status === 'Active' ? 'bg-green-500/10 text-green-400 border-green-500/30' : 
-                        game.status === 'Expanding' ? 'bg-blue-500/10 text-blue-400 border-blue-500/30' :
-                        'bg-neutral-800 text-neutral-500 border-white/10'
-                      }`}>
-                        {game.status}
-                      </span>
-                    </div>
-                  );
-                })}
-              </motion.div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Latest Events & Highlights Section */}
-      <section className="py-24 container mx-auto px-4">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
-          {/* Latest Events Column */}
-          <div className="lg:col-span-1 space-y-8">
-            <div>
-              <SectionHeader tag="Uplink" title="Latest" goldSpan="Events" className="!text-left !items-start" />
-              <p className="text-neutral-500 text-sm mt-4">Active and upcoming deployments in the BTS grid.</p>
-            </div>
-            
-            <div className="space-y-4">
-              {displayTournaments.map((t, i) => (
-                <motion.div
-                  key={i}
-                  initial={{ opacity: 0, x: -20 }}
-                  whileInView={{ opacity: 1, x: 0 }}
-                  transition={{ delay: i * 0.1 }}
-                  onClick={() => onNavigate('tournament')}
-                  className="bg-white/5 border border-white/10 p-4 group hover:border-gold/30 transition-all cursor-pointer relative overflow-hidden"
-                >
-                  <div className="flex justify-between items-start mb-2">
-                    <span className="text-[10px] font-bold text-gold uppercase tracking-tighter">{t.game} {t.map && <span className="opacity-50 ml-1">• {t.map}</span>}</span>
-                    <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-[2px] ${
-                      t.status === 'open' || t.status === 'Active' ? 'bg-green-500/20 text-green-400' : 'bg-blue-500/20 text-blue-400'
-                    }`}>
-                      {t.status}
-                    </span>
-                  </div>
-                  <h4 className="text-white font-bebas text-lg tracking-widest group-hover:text-gold transition-colors">{t.name}</h4>
-                  <div className="flex items-center gap-4 mt-3 text-[10px] text-neutral-500 font-bold">
-                    <span className="flex items-center gap-1"><Calendar size={12} /> {t.date}</span>
-                    <span className="flex items-center gap-1 text-gold">{(t.pool || t.prize)}</span>
-                  </div>
-                </motion.div>
-              ))}
-              <button 
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+            {Object.entries(GAME_DATA).map(([game, data], i) => (
+              <motion.div
+                key={game}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.1 }}
                 onClick={() => onNavigate('tournament')}
-                className="w-full py-4 border border-white/5 text-[10px] font-black uppercase tracking-[0.3em] text-neutral-500 hover:text-gold hover:border-gold/20 transition-all"
+                className="group cursor-pointer bg-neutral-900 border border-white/5 p-6 hover:border-gold/30 transition-all text-center relative overflow-hidden"
               >
-                View All Operations
+                <div className="absolute inset-0 bg-gold/5 opacity-0 group-hover:opacity-100 transition-opacity" />
+                <div className="w-16 h-16 bg-white/5 border border-white/10 rounded-full flex items-center justify-center mx-auto mb-4 group-hover:border-gold transition-colors">
+                   <Gamepad2 size={24} className="text-gold" />
+                </div>
+                <h4 className="font-bebas text-2xl text-white tracking-widest">{game}</h4>
+                <div className="text-[10px] font-bold text-gold uppercase tracking-widest mt-2">Active Division</div>
+                <div className="mt-4 pt-4 border-t border-white/5 flex justify-center gap-4 text-[9px] text-neutral-500 font-black uppercase tracking-widest">
+                   <span>{data.maps.length} Maps</span>
+                   <span className="text-white/20">|</span>
+                   <span>Pro Tier</span>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Latest Events & Highlights */}
+      <section className="py-24 bg-black px-4">
+        <div className="container mx-auto grid grid-cols-1 lg:grid-cols-[1fr_400px] gap-12">
+          <div>
+            <div className="flex items-center justify-between mb-8">
+              <h3 className="font-bebas text-4xl text-white tracking-widest">Active <span className="text-gold">Tournaments</span></h3>
+              <button onClick={() => onNavigate('tournament')} className="text-[10px] font-black text-neutral-500 uppercase tracking-widest hover:text-gold transition-colors flex items-center gap-2">
+                View All <Plus size={12} />
               </button>
             </div>
-          </div>
-
-          {/* Highlights Column */}
-          <div className="lg:col-span-2 space-y-8">
-            <SectionHeader tag="Combat Archive" title="Tournament" goldSpan="Highlights" className="!text-left !items-start" />
-            
-            <div className="hidden md:grid grid-cols-1 md:grid-cols-2 gap-6">
-              {displayHighlights.map((h, i) => (
-                <motion.div
-                  key={i}
-                  initial={{ opacity: 0, y: 20 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  transition={{ delay: i * 0.1 }}
-                  className="group cursor-pointer"
-                >
-                  <div className="relative aspect-video overflow-hidden border border-white/10 group-hover:border-gold/40 transition-all">
-                    <img 
-                      src={getSafeImageUrl(h.thumb)} 
-                      alt={h.title}
-                      className="w-full h-full object-cover opacity-60 group-hover:opacity-100 group-hover:scale-105 transition-all duration-500"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent opacity-60" />
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <div className="w-12 h-12 bg-gold/90 text-black rounded-full flex items-center justify-center scale-90 group-hover:scale-100 transition-transform shadow-[0_0_20px_rgba(255,215,0,0.4)]">
-                        <Play size={24} fill="currentColor" />
-                      </div>
+            <div className="space-y-4">
+              {displayTournaments.map((t, i) => (
+                <div key={i} className="group bg-neutral-900/50 border border-white/5 p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 hover:border-gold/20 transition-all cursor-pointer" onClick={() => onNavigate('tournament')}>
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 bg-gold/10 border border-gold/20 rounded-md flex items-center justify-center font-orbitron font-black text-gold">
+                      {t.name?.charAt(0) || 'T'}
                     </div>
-                    <div className="absolute top-4 left-4">
-                      <span className="bg-gold text-black text-[8px] font-black px-2 py-1 tracking-widest uppercase rounded-[2px]">{h.tag}</span>
+                    <div>
+                      <div className="text-[9px] font-black text-gold uppercase tracking-[0.2em]">{t.game}</div>
+                      <h4 className="text-xl font-bebas text-white tracking-wide">{t.name}</h4>
                     </div>
                   </div>
-                  <div className="mt-4">
-                    <h5 className="text-white font-bebas text-xl tracking-wider group-hover:text-gold transition-colors line-clamp-1">{h.title}</h5>
-                    <p className="text-neutral-500 text-[10px] font-bold uppercase tracking-widest mt-1">{h.date}</p>
+                  <div className="flex items-center gap-8 w-full md:w-auto justify-between md:justify-end border-t md:border-t-0 border-white/5 pt-4 md:pt-0">
+                    <div className="text-right">
+                       <span className="text-[9px] font-bold text-neutral-500 block uppercase tracking-widest">Prize Pool</span>
+                       <span className="text-lg font-orbitron font-bold text-white leading-none">{t.prize || t.pool}</span>
+                    </div>
+                    <div className={`px-4 py-1 text-[9px] font-black uppercase tracking-widest border ${t.status === 'open' ? 'border-green-500 text-green-500 bg-green-500/5' : 'border-neutral-700 text-neutral-500 bg-neutral-800'}`}>
+                      {t.status}
+                    </div>
                   </div>
-                </motion.div>
+                </div>
               ))}
             </div>
+          </div>
 
-            {/* Mobile View: Auto-sliding Marquee */}
-            <div className="md:hidden overflow-hidden py-4 -mx-4 px-4">
-              <motion.div 
-                className="flex gap-4"
-                animate={{
-                  x: [0, -1200]
-                }}
-                transition={{
-                  x: {
-                    repeat: Infinity,
-                    repeatType: "loop",
-                    duration: 40,
-                    ease: "linear",
-                  },
-                }}
-                style={{ width: 'fit-content' }}
-              >
-                {[...displayHighlights, ...displayHighlights].map((h, i) => (
-                  <div key={i} className="min-w-[280px] group cursor-pointer">
-                    <div className="relative aspect-video overflow-hidden border border-white/10">
-                      <img 
-                        src={getSafeImageUrl(h.thumb)} 
-                        alt={h.title}
-                        className="w-full h-full object-cover opacity-80"
-                      />
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
-                      <div className="absolute top-2 left-2">
-                        <span className="bg-gold text-black text-[7px] font-black px-1.5 py-0.5 tracking-widest uppercase rounded-[1px]">{h.tag}</span>
+          <div>
+             <div className="flex items-center justify-between mb-8">
+               <h3 className="font-bebas text-4xl text-white tracking-widest">Latest <span className="text-gold">Intel</span></h3>
+             </div>
+             <div className="space-y-6">
+                {displayHighlights.slice(0, 3).map((h, i) => (
+                  <div key={i} className="group cursor-pointer">
+                    <div className="aspect-video bg-neutral-900 border border-white/5 overflow-hidden relative mb-3 group-hover:border-gold/30 transition-all">
+                      <img src={h.thumb} className="w-full h-full object-cover opacity-50 group-hover:opacity-80 group-hover:scale-105 transition-all duration-700" alt={h.title} />
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <div className="w-12 h-12 rounded-full bg-black/50 border border-white/20 flex items-center justify-center backdrop-blur-sm group-hover:bg-gold group-hover:text-black transition-all">
+                          <Play size={20} fill="currentColor" />
+                        </div>
                       </div>
-                      <div className="absolute bottom-2 left-2 right-2">
-                        <h5 className="text-white font-bebas text-lg tracking-wider line-clamp-1">{h.title}</h5>
-                        <p className="text-neutral-500 text-[8px] font-bold uppercase tracking-widest">{h.date}</p>
+                      <div className="absolute bottom-2 left-2">
+                        <span className="bg-black/80 text-gold text-[7px] font-black px-2 py-0.5 tracking-widest uppercase">{h.tag}</span>
                       </div>
                     </div>
+                    <h5 className="font-bebas text-xl text-white tracking-widest group-hover:text-gold transition-colors line-clamp-1">{h.title}</h5>
+                    <p className="text-[9px] text-neutral-600 font-bold uppercase tracking-widest mt-1">{h.date}</p>
                   </div>
                 ))}
-              </motion.div>
-            </div>
+             </div>
           </div>
         </div>
       </section>
 
-      <IntelUplink socialLinks={socialLinks} />
-      <SquadAchievementGallery achievements={dbAchievements} />
     </div>
   );
 };
@@ -3752,6 +3653,95 @@ const AdminDashboard = ({ onToast, adminRole, user, orgStatsProp }: { onToast: (
     document.body.removeChild(link);
   };
 
+  const exportRegistrationsToCSV = (regsList: any[], filename: string) => {
+    if (!regsList.length) return;
+    
+    let maxSquadCount = 0;
+    regsList.forEach(r => {
+      if (r.squad && Array.isArray(r.squad)) {
+        if (r.squad.length > maxSquadCount) {
+          maxSquadCount = r.squad.length;
+        }
+      }
+    });
+
+    const coreHeaders = [
+      'Team Name',
+      'Leader/Player Name',
+      'Leader IGN',
+      'Leader Player ID',
+      'Leader Discord ID',
+      'Contact',
+      'Email',
+      'Status',
+      'Registration Date'
+    ];
+
+    const squadHeaders: string[] = [];
+    for (let i = 1; i <= maxSquadCount; i++) {
+      squadHeaders.push(`Squad Member ${i} IGN`);
+      squadHeaders.push(`Squad Member ${i} Player ID`);
+    }
+
+    const headers = [...coreHeaders, ...squadHeaders].join(',');
+
+    const rows = regsList.map(reg => {
+      let regDate = '';
+      if (reg.createdAt) {
+        if (typeof reg.createdAt.toDate === 'function') {
+          try {
+            regDate = reg.createdAt.toDate().toISOString();
+          } catch (e) {
+            regDate = String(reg.createdAt);
+          }
+        } else {
+          try {
+            regDate = new Date(reg.createdAt).toISOString();
+          } catch (e) {
+            regDate = String(reg.createdAt);
+          }
+        }
+      }
+
+      const coreValues = [
+        reg.teamName || '',
+        reg.playerName || '',
+        reg.ign || '',
+        reg.playerId || '',
+        reg.discordId || '',
+        reg.contact || '',
+        reg.email || '',
+        reg.status || '',
+        regDate
+      ];
+
+      const squadValues: string[] = [];
+      for (let i = 0; i < maxSquadCount; i++) {
+        const member = reg.squad && reg.squad[i] ? reg.squad[i] : null;
+        squadValues.push(member ? (member.ign || '') : '');
+        squadValues.push(member ? (member.uid || '') : '');
+      }
+
+      return [...coreValues, ...squadValues]
+        .map(val => {
+          const stringVal = val === null || val === undefined ? '' : String(val);
+          return `"${stringVal.replace(/"/g, '""')}"`;
+        })
+        .join(',');
+    }).join('\n');
+
+    const csvContent = `${headers}\n${rows}`;
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `${filename}_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   const submitTournament = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!tournamentForm.name || !tournamentForm.prize) {
@@ -5221,7 +5211,7 @@ const AdminDashboard = ({ onToast, adminRole, user, orgStatsProp }: { onToast: (
                     <div className="space-y-4">
                       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-blue-900/10 border border-blue-500/20 p-4 rounded-sm gap-3">
                         <div className="flex items-center gap-3">
-                          <AlertCircle size={16} className="text-blue-400" />
+                          <Info size={16} className="text-blue-400" />
                           <div>
                             <span className="block text-[9px] font-black text-blue-400 uppercase tracking-widest">Deployment Required</span>
                             <span className="block text-[8px] text-blue-400/70 font-bold uppercase italic">Sync will not work without Web App URL</span>
@@ -5392,7 +5382,7 @@ function doPost(e) {
 
                     <div className="bg-yellow-500/5 border border-yellow-500/10 p-4 rounded-sm">
                         <h5 className="text-[8px] font-black text-yellow-500 uppercase tracking-widest mb-2 flex items-center gap-2">
-                          <AlertCircle size={10} /> Why am I not seeing data?
+                          <Info size={10} /> Why am I not seeing data?
                         </h5>
                         <div className="space-y-3">
                           <p className="text-[7px] text-neutral-400 font-bold uppercase leading-relaxed">
@@ -6713,12 +6703,22 @@ function doPost(e) {
                        </select>
                     </div>
                     {registrations.length > 0 && (
-                      <button 
-                        onClick={() => exportToCSV(registrations, `BTS_Registrations_${selectedTournamentForRegs}`)}
-                        className="flex items-center gap-2 border border-gold/20 bg-gold/5 px-6 py-3 text-gold hover:bg-gold hover:text-black text-[10px] font-black uppercase tracking-widest transition-all rounded-[2px]"
-                      >
-                        <Download size={14} /> EXPORT PLAYER LIST
-                      </button>
+                      <div className="flex flex-wrap gap-3">
+                        <button 
+                          id="export-raw-list-btn"
+                          onClick={() => exportToCSV(registrations, `BTS_Registrations_Raw_${selectedTournamentForRegs}`)}
+                          className="flex items-center gap-2 border border-white/10 bg-white/5 px-4 py-3 text-neutral-400 hover:bg-neutral-800 hover:text-white text-[10px] font-black uppercase tracking-widest transition-all rounded-[2px]"
+                        >
+                          <Download size={14} /> Export Raw List
+                        </button>
+                        <button 
+                          id="export-registrations-btn"
+                          onClick={() => exportRegistrationsToCSV(registrations, `BTS_Registrations_${selectedTournamentForRegs}`)}
+                          className="flex items-center gap-2 border border-gold/20 bg-gold/5 px-6 py-3 text-gold hover:bg-gold hover:text-black text-[10px] font-black uppercase tracking-widest transition-all rounded-[2px]"
+                        >
+                          <Download size={14} /> Export Registrations
+                        </button>
+                      </div>
                     )}
                  </div>
 
@@ -8024,29 +8024,29 @@ export default function App() {
           </div>
 
           <div className="pt-12 border-t border-white/5 flex flex-col md:flex-row justify-between items-center gap-6">
-            <div className="text-[10px] text-neutral-600 font-bold uppercase tracking-widest">
-              © {new Date().getFullYear()} {branding.orgName}. All rights reserved. Professionalism in Gaming.
+            <div className="text-[10px] text-neutral-600 font-bold uppercase tracking-[0.3em]">
+              © {new Date().getFullYear()} {branding.orgName}. ALL RIGHTS RESERVED. <span className="text-gold font-black opacity-40">PRO_CIRCUIT_ENABLED</span>
             </div>
             
-            <div className="flex gap-4 flex-wrap">
+            <div className="flex gap-2 flex-wrap">
               {[
-                { icon: <Instagram size={18}/>, label: 'Instagram', url: socialLinks.instagram },
-                { icon: <Youtube size={18}/>, label: 'YouTube', url: socialLinks.youtube },
-                { icon: <MessageSquare size={18}/>, label: 'Discord', url: socialLinks.discord },
-                { icon: <Smartphone size={18}/>, label: 'WhatsApp', url: socialLinks.whatsapp },
-                { icon: <Facebook size={18}/>, label: 'Facebook', url: socialLinks.facebook },
-                { icon: <Twitter size={18}/>, label: 'Twitter', url: socialLinks.twitter },
-                { icon: <Send size={18}/>, label: 'Telegram', url: socialLinks.telegram },
+                { icon: <Instagram size={16}/>, label: 'Instagram', url: socialLinks.instagram },
+                { icon: <Youtube size={16}/>, label: 'YouTube', url: socialLinks.youtube },
+                { icon: <MessageSquare size={16}/>, label: 'Discord', url: socialLinks.discord },
+                { icon: <Smartphone size={16}/>, label: 'WhatsApp', url: socialLinks.whatsapp },
+                { icon: <Facebook size={16}/>, label: 'Facebook', url: socialLinks.facebook },
+                { icon: <Twitter size={16}/>, label: 'Twitter', url: socialLinks.twitter },
+                { icon: <Send size={16}/>, label: 'Telegram', url: socialLinks.telegram },
               ].filter(s => s.url && s.url !== '#').map((social, i) => (
                 <a 
                   key={i}
                   href={social.url.startsWith('http') ? social.url : `https://${social.url}`}
                   target="_blank"
                   rel="noreferrer"
-                  className="w-10 h-10 border border-white/10 flex items-center justify-center text-neutral-500 hover:border-gold hover:text-gold transition-all duration-300 transform hover:-translate-y-1"
+                  className="w-10 h-10 border border-white/5 flex items-center justify-center text-neutral-600 hover:border-gold hover:text-gold transition-all duration-500 group"
                   title={social.label}
                 >
-                  {social.icon}
+                  <div className="transform group-hover:scale-110 transition-transform">{social.icon}</div>
                 </a>
               ))}
             </div>

@@ -288,7 +288,7 @@ service cloud.firestore {
 
     match /site_config/{configId} {
       allow read: if true;
-      allow write: if isContentModerator();
+      allow write: if isAdmin();
     }
   }
 }

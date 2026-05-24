@@ -370,7 +370,7 @@ const Home = ({ onNavigate, onToast, userRole, isAdmin, user, branding }: { onNa
         )}
       </AnimatePresence>
 
-      <section className="relative min-h-[90vh] flex items-center overflow-hidden">
+      <section className="relative min-h-[70vh] lg:min-h-[80vh] max-h-[760px] flex items-center overflow-hidden py-16 lg:py-24">
         {/* Background Images for Slides */}
         <AnimatePresence mode="wait">
           <motion.div 
@@ -401,19 +401,19 @@ const Home = ({ onNavigate, onToast, userRole, isAdmin, user, branding }: { onNa
               transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
               className="max-w-4xl"
             >
-              <div className="flex items-center gap-4 mb-8">
+              <div className="flex items-center gap-4 mb-6">
                 <div className="h-[2px] w-12 bg-gold" />
                 <span className="text-gold text-xs font-black uppercase tracking-[0.5em]">{heroSlides[currentSlide].tag}</span>
               </div>
 
-              <div className="space-y-4 mb-12">
+              <div className="space-y-3 mb-10">
                 {heroSlides[currentSlide].title.map((word, i) => (
                   <motion.h1 
                     key={i}
                     initial={{ x: -100, opacity: 0 }}
                     animate={{ x: 0, opacity: 1 }}
                     transition={{ delay: 0.2 + (i * 0.1), duration: 0.8 }}
-                    className="font-bebas text-[12vw] md:text-[8vw] leading-[0.85] tracking-tight uppercase text-white"
+                    className="font-bebas text-5xl sm:text-6xl md:text-7xl lg:text-8xl xl:text-[6.5rem] leading-[0.85] tracking-tight uppercase text-white animate-fade-in"
                   >
                     {word}
                   </motion.h1>

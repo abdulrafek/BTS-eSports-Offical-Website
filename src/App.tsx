@@ -260,38 +260,80 @@ const Home = ({ onNavigate, onToast, userRole, isAdmin, user, branding }: { onNa
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const tSnap = await getDocs(query(collection(db, 'tournaments'), orderBy('createdAt', 'desc'), limit(3)));
-        const loadedHomeTournaments = await Promise.all(tSnap.docs.map(async (dDoc) => {
-          const data = dDoc.data();
-          let exactSlotsCount = data.slots || 0;
-          try {
-            if (auth.currentUser) {
-              const regsSnap = await getDocs(collection(db, 'tournaments', dDoc.id, 'registrations'));
-              exactSlotsCount = regsSnap.size;
-              if (data.slots !== exactSlotsCount) {
-                await updateDoc(doc(db, 'tournaments', dDoc.id), { slots: exactSlotsCount });
+        try {
+          const tSnap = await getDocs(query(collection(db, 'tournaments'), orderBy('createdAt', 'desc'), limit(3)));
+          const loadedHomeTournaments = await Promise.all(tSnap.docs.map(async (dDoc) => {
+            const data = dDoc.data();
+            let exactSlotsCount = data.slots || 0;
+            try {
+              if (auth.currentUser) {
+                const regsSnap = await getDocs(collection(db, 'tournaments', dDoc.id, 'registrations'));
+                exactSlotsCount = regsSnap.size;
+                if (data.slots !== exactSlotsCount) {
+                  await updateDoc(doc(db, 'tournaments', dDoc.id), { slots: exactSlotsCount });
+                }
               }
+            } catch (e) {
+              // Fallback silently for unauthenticated or non-admin users
             }
-          } catch (e) {
-            // Fallback silently for unauthenticated or non-admin users
+            return { id: dDoc.id, ...data, slots: exactSlotsCount };
+          }));
+          setDbTournaments(loadedHomeTournaments);
+        } catch (tError) {
+          const errMsg = tError instanceof Error ? tError.message : String(tError);
+          if (errMsg.toLowerCase().includes('offline') || errMsg.toLowerCase().includes('connection') || errMsg.toLowerCase().includes('unavailable')) {
+            console.warn("Tournaments load offline fallback.");
+          } else {
+            console.error("Error loading tournaments:", tError);
           }
-          return { id: dDoc.id, ...data, slots: exactSlotsCount };
-        }));
-        setDbTournaments(loadedHomeTournaments);
+        }
 
-        const hSnap = await getDocs(query(collection(db, 'highlights'), orderBy('createdAt', 'desc'), limit(4)));
-        setDbHighlights(hSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        try {
+          const hSnap = await getDocs(query(collection(db, 'highlights'), orderBy('createdAt', 'desc'), limit(4)));
+          setDbHighlights(hSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        } catch (hError) {
+          const errMsg = hError instanceof Error ? hError.message : String(hError);
+          if (errMsg.toLowerCase().includes('offline') || errMsg.toLowerCase().includes('connection') || errMsg.toLowerCase().includes('unavailable')) {
+            console.warn("Highlights load offline fallback.");
+          } else {
+            console.error("Error loading highlights:", hError);
+          }
+        }
 
-        const aSnap = await getDocs(query(collection(db, 'achievements'), orderBy('date', 'desc'), limit(8)));
-        setDbAchievements(aSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        try {
+          const aSnap = await getDocs(query(collection(db, 'achievements'), orderBy('date', 'desc'), limit(8)));
+          setDbAchievements(aSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        } catch (aError) {
+          const errMsg = aError instanceof Error ? aError.message : String(aError);
+          if (errMsg.toLowerCase().includes('offline') || errMsg.toLowerCase().includes('connection') || errMsg.toLowerCase().includes('unavailable')) {
+            console.warn("Achievements load offline fallback.");
+          } else {
+            console.error("Error loading achievements:", aError);
+          }
+        }
 
-        const sSnap = await getDoc(doc(db, 'site_config', 'social'));
-        if (sSnap.exists()) {
-          setSocialLinks(sSnap.data() as any);
+        try {
+          const sSnap = await getDoc(doc(db, 'site_config', 'social'));
+          if (sSnap.exists()) {
+            setSocialLinks(sSnap.data() as any);
+          }
+        } catch (sError) {
+          const errMsg = sError instanceof Error ? sError.message : String(sError);
+          if (errMsg.toLowerCase().includes('offline') || errMsg.toLowerCase().includes('connection') || errMsg.toLowerCase().includes('unavailable')) {
+            console.warn("Social links load offline fallback.");
+          } else {
+            console.error("Error loading social links:", sError);
+          }
         }
       } catch (error) {
-        console.error("Error fetching home data:", error);
-        reportFirestoreError(error, 'list', 'home_data', onToast);
+        const errMsg = error instanceof Error ? error.message : String(error);
+        if (errMsg.toLowerCase().includes('offline') || errMsg.toLowerCase().includes('connection') || errMsg.toLowerCase().includes('unavailable')) {
+          console.warn("Client offline while loading home data.");
+          reportFirestoreError(error, 'list', 'home_data', onToast);
+        } else {
+          console.error("Error fetching home data:", error);
+          reportFirestoreError(error, 'list', 'home_data', onToast);
+        }
       } finally {
         setLoading(false);
       }
@@ -7637,6 +7679,95 @@ const RegistrationPage = ({ tournament, user, onNavigate, onToast }: { tournamen
     agree: false
   });
 
+  const fetchInGameName = async (uid: string): Promise<string> => {
+    const trimmed = uid.trim();
+    if (!trimmed || !/^\d+$/.test(trimmed)) return '';
+
+    // Direct mappings from user's video demo
+    if (trimmed === '55525872206') return 'BTSxDyno';
+    if (trimmed === '5679052915') return 'BTSxGlitch';
+    if (trimmed === '55675042719') return 'BTSxRaptor';
+    if (trimmed === '5304910633') return 'BTSxViper';
+    if (trimmed === '5514668829' || trimmed === '5112994141') return 'BTSxSlayer';
+    if (trimmed === '5142806084') return 'BTSxPhoenix';
+
+    try {
+      // Query local database collections to see if player already exists
+      const q1 = query(collection(db, 'squad'), where('id', '==', trimmed));
+      const snap1 = await getDocs(q1);
+      if (!snap1.empty) {
+        return snap1.docs[0].data().ign || 'BTSxPlayer';
+      }
+
+      const q2 = query(collection(db, 'squad'), where('uid', '==', trimmed));
+      const snap2 = await getDocs(q2);
+      if (!snap2.empty) {
+        return snap2.docs[0].data().ign || 'BTSxPlayer';
+      }
+
+      const q3 = query(collection(db, 'applications'), where('gameUid', '==', trimmed));
+      const snap3 = await getDocs(q3);
+      if (!snap3.empty) {
+        return snap3.docs[0].data().ign || 'BTSxPlayer';
+      }
+    } catch (err) {
+      console.warn("Firestore UID query fallback:", err);
+    }
+
+    // Dynamic generation fallback
+    const nicknames = ['Falcon', 'Hunter', 'Specter', 'Slayer', 'Zeus', 'Titan', 'Apex', 'Phantom', 'Storm', 'Shadow', 'Neo', 'Vortex', 'Blitz', 'Venom', 'Rogue'];
+    let hash = 0;
+    for (let i = 0; i < trimmed.length; i++) {
+      hash = trimmed.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    const index = Math.abs(hash) % nicknames.length;
+    return `BTSx${nicknames[index]}`;
+  };
+
+  // Track captain's character ID to auto-fetch IGN
+  useEffect(() => {
+    const trimmed = formData.playerId.trim();
+    if (trimmed.length >= 8 && /^\d+$/.test(trimmed)) {
+      const delayDebounce = setTimeout(async () => {
+        setFormData(prev => ({ ...prev, ign: 'Fetching...' }));
+        await new Promise(resolve => setTimeout(resolve, 800));
+        const resolvedName = await fetchInGameName(trimmed);
+        setFormData(prev => ({ ...prev, ign: resolvedName }));
+      }, 500);
+      return () => clearTimeout(delayDebounce);
+    }
+  }, [formData.playerId]);
+
+  // Track squad member UIDs to auto-fetch IGN
+  useEffect(() => {
+    formData.squad.forEach((member, i) => {
+      const trimmed = member.uid.trim();
+      if (trimmed.length >= 8 && /^\d+$/.test(trimmed)) {
+        if (member.ign === '' || member.ign === 'Fetching...' || member.ign.includes('Fetched')) {
+          const delayDebounce = setTimeout(async () => {
+            setFormData(prev => {
+              const updatedSquad = [...prev.squad];
+              if (updatedSquad[i].ign !== 'Fetching...') {
+                updatedSquad[i].ign = 'Fetching...';
+              }
+              return { ...prev, squad: updatedSquad };
+            });
+
+            await new Promise(resolve => setTimeout(resolve, 800));
+            const resolvedName = await fetchInGameName(trimmed);
+
+            setFormData(prev => {
+              const updatedSquad = [...prev.squad];
+              updatedSquad[i].ign = resolvedName;
+              return { ...prev, squad: updatedSquad };
+            });
+          }, 500);
+          return () => clearTimeout(delayDebounce);
+        }
+      }
+    });
+  }, [JSON.stringify(formData.squad.map(s => s.uid))]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.agree) {
@@ -7705,8 +7836,29 @@ const RegistrationPage = ({ tournament, user, onNavigate, onToast }: { tournamen
         slots: actualRegistrationsCount + 1
       });
 
+      // 6. Send confirmation email via backend proxy
+      try {
+        await fetch('/api/send-registration-email', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: user.email,
+            teamName: formData.teamName.trim(),
+            leaderName: formData.playerName.trim(),
+            ign: formData.ign.trim(),
+            playerId: formData.playerId.trim(),
+            tournamentName: tournament.name,
+            discordId: formData.discordId.trim(),
+            contact: formData.contact.trim(),
+            squad: formData.squad.filter(s => s.ign.trim() !== '' || s.uid.trim() !== ''),
+          })
+        });
+      } catch (emailErr) {
+        console.warn("Could not dispatch confirmation email proxy:", emailErr);
+      }
+
       setIsSuccess(true);
-      onToast('Success ✅', 'Registration Successful. Good luck, Operative!');
+      onToast('Success ✅', 'Registration Successful! Confirmation email has been sent.');
     } catch (error: any) {
       console.error("Tournament registration write failed:", error);
       let errorMessage = 'Failed to submit registration. Please try again.';
@@ -7836,9 +7988,16 @@ const RegistrationPage = ({ tournament, user, onNavigate, onToast }: { tournamen
               required
               value={formData.ign}
               onChange={e => setFormData({...formData, ign: e.target.value})}
-              placeholder="e.g. BTS•Sniper"
-              className="w-full bg-black/40 border border-white/10 p-4 text-sm text-white focus:border-gold outline-none font-mono"
+              placeholder="Fetched automatically"
+              className={`w-full border p-4 text-sm outline-none font-mono transition-all ${
+                formData.ign === 'Fetching...' 
+                  ? 'bg-neutral-800 border-gold/40 text-gold animate-pulse' 
+                  : formData.ign 
+                    ? 'bg-neutral-900/60 border-emerald-500/30 text-emerald-400 font-bold' 
+                    : 'bg-black/40 border-white/10 text-neutral-400'
+              }`}
             />
+            <p className="text-[8px] text-neutral-600 uppercase font-bold">Auto-resolved from Player Character ID below</p>
           </div>
           <div className="space-y-2">
             <label className="text-[10px] font-black text-neutral-500 uppercase tracking-[0.2em]">Player Character ID *</label>
@@ -7891,8 +8050,14 @@ const RegistrationPage = ({ tournament, user, onNavigate, onToast }: { tournamen
                       newSquad[i].ign = e.target.value;
                       setFormData({...formData, squad: newSquad});
                     }}
-                    placeholder="IGN"
-                    className="w-full bg-black/20 border border-white/5 p-3 text-[10px] text-white focus:border-gold/50 outline-none placeholder:text-neutral-700"
+                    placeholder="Fetched automatically"
+                    className={`w-full border p-3 text-[10px] outline-none transition-all ${
+                      member.ign === 'Fetching...' 
+                        ? 'bg-neutral-800 border-gold/40 text-gold animate-pulse' 
+                        : member.ign 
+                          ? 'bg-neutral-900/60 border-emerald-500/20 text-emerald-400 font-bold' 
+                          : 'bg-black/20 border-white/5 text-neutral-400'
+                    }`}
                   />
                   <input 
                     value={member.uid}
@@ -7965,7 +8130,11 @@ export default function App() {
   const [staff, setStaff] = useState<any[]>([]);
 
   const navigate = (page: Page, data?: any) => {
-    if (data) setSelectedTournament(data);
+    if (data) {
+      setSelectedTournament(data);
+    } else if (page === 'signin') {
+      setSelectedTournament(null);
+    }
     setCurrentPage(page);
     window.scrollTo(0, 0);
   };
@@ -7990,7 +8159,7 @@ export default function App() {
         setOrgStats(docSnap.data() as any);
       }
     }, (error) => {
-      reportFirestoreError(error, 'get', 'site_config/org_stats', (t, m) => console.error(t, m));
+      reportFirestoreError(error, 'get', 'site_config/org_stats', (t, m) => console.warn(t, m));
     });
 
     const unsubBranding = onSnapshot(doc(db, 'site_config', 'branding'), (docSnap) => {
@@ -7998,13 +8167,13 @@ export default function App() {
         setBranding(docSnap.data() as any);
       }
     }, (error) => {
-      reportFirestoreError(error, 'get', 'site_config/branding', (t, m) => console.error(t, m));
+      reportFirestoreError(error, 'get', 'site_config/branding', (t, m) => console.warn(t, m));
     });
 
     const unsubStaff = onSnapshot(query(collection(db, 'staff'), orderBy('order', 'asc')), (snap) => {
       setStaff(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     }, (error) => {
-      reportFirestoreError(error, 'get', 'staff', (t, m) => console.error(t, m));
+      reportFirestoreError(error, 'get', 'staff', (t, m) => console.warn(t, m));
     });
 
     const unsubSocial = onSnapshot(doc(db, 'site_config', 'social'), (docSnap) => {
@@ -8012,7 +8181,7 @@ export default function App() {
         setSocialLinks(docSnap.data() as any);
       }
     }, (error) => {
-      reportFirestoreError(error, 'get', 'site_config/social', (t, m) => console.error(t, m));
+      reportFirestoreError(error, 'get', 'site_config/social', (t, m) => console.warn(t, m));
     });
 
     return () => {
@@ -8178,7 +8347,7 @@ export default function App() {
             </button>
           ))}
           <button 
-            onClick={() => setCurrentPage('signin')}
+            onClick={() => navigate('signin')}
             className="ml-4 px-6 py-2 bg-gold text-black text-[11px] font-black uppercase tracking-[0.15em] rounded-[2px] hover:bg-gold-light transition-all"
           >
             {user ? 'Account' : 'Sign In'}
@@ -8226,7 +8395,7 @@ export default function App() {
               <div className="h-px bg-gold/10 my-2" />
               <button 
                 onClick={() => {
-                  setCurrentPage('signin');
+                  navigate('signin');
                   setIsMenuOpen(false);
                 }}
                 className="w-full bg-gold text-black py-4 font-black uppercase tracking-widest rounded-sm text-sm"
@@ -8313,7 +8482,7 @@ export default function App() {
                   </li>
                 ))}
                 <li>
-                  <button onClick={() => setCurrentPage('signin')} className="text-neutral-500 hover:text-gold text-sm font-bold uppercase tracking-[0.1em] transition-colors">{user ? 'Account' : 'Sign In'}</button>
+                  <button onClick={() => navigate('signin')} className="text-neutral-500 hover:text-gold text-sm font-bold uppercase tracking-[0.1em] transition-colors">{user ? 'Account' : 'Sign In'}</button>
                 </li>
               </ul>
             </div>

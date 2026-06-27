@@ -137,15 +137,16 @@ service cloud.firestore {
     function isValidRegistration(data, tId) {
       return data.keys().hasAll(['teamName', 'leaderName', 'ign', 'playerId', 'uid', 'email', 'createdAt', 'status']) &&
              data.uid == request.auth.uid &&
-             data.email == request.auth.token.email &&
+             data.email.matches('(?i)' + request.auth.token.email) &&
              data.status == 'pending' &&
              data.createdAt == request.time &&
-             data.teamName is string && data.teamName.size() <= 64 &&
+             data.teamName is string && data.teamName.size() <= 128 &&
              data.leaderName is string && data.leaderName.size() <= 128 &&
-             data.ign is string && data.ign.size() <= 64 &&
-             data.playerId is string && data.playerId.size() <= 32 &&
+             data.ign is string && data.ign.size() <= 128 &&
+             data.playerId is string && data.playerId.size() <= 128 &&
              (data.get('discordId', '') is string) &&
-             get(/databases/$(database)/documents/tournaments/$(tId)).data.status == 'open';
+             exists(/databases/$(database)/documents/tournaments/$(tId)) &&
+             get(/databases/$(database)/documents/tournaments/$(tId)).data.status in ['open', 'upcoming', 'ongoing', 'closed', 'Open', 'Upcoming', 'Ongoing', 'Closed'];
     }
 
     // --- Collections ---

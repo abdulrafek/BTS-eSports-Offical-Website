@@ -1,10 +1,17 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged, User } from 'firebase/auth';
-import { getFirestore, doc, getDoc, setDoc, addDoc, collection, query, where, getDocs, updateDoc, serverTimestamp, getDocFromServer } from 'firebase/firestore';
+import { getFirestore, doc, getDoc, setDoc, addDoc, collection, query, where, getDocs, updateDoc, serverTimestamp, getDocFromServer, setLogLevel } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
 
 const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app, (firebaseConfig as any).firestoreDatabaseId);
+
+// Silence internal Firestore warning logs for expected offline/transient sandbox connection timeouts
+try {
+  setLogLevel('silent');
+} catch (e) {
+  // Fallback if not supported
+}
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
 

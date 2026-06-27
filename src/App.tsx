@@ -265,13 +265,15 @@ const Home = ({ onNavigate, onToast, userRole, isAdmin, user, branding }: { onNa
           const data = dDoc.data();
           let exactSlotsCount = data.slots || 0;
           try {
-            const regsSnap = await getDocs(collection(db, 'tournaments', dDoc.id, 'registrations'));
-            exactSlotsCount = regsSnap.size;
-            if (data.slots !== exactSlotsCount) {
-              await updateDoc(doc(db, 'tournaments', dDoc.id), { slots: exactSlotsCount });
+            if (auth.currentUser) {
+              const regsSnap = await getDocs(collection(db, 'tournaments', dDoc.id, 'registrations'));
+              exactSlotsCount = regsSnap.size;
+              if (data.slots !== exactSlotsCount) {
+                await updateDoc(doc(db, 'tournaments', dDoc.id), { slots: exactSlotsCount });
+              }
             }
           } catch (e) {
-            console.error("Error syncing slots for", dDoc.id, e);
+            // Fallback silently for unauthenticated or non-admin users
           }
           return { id: dDoc.id, ...data, slots: exactSlotsCount };
         }));
@@ -875,6 +877,27 @@ const RosterPage = ({ onToast }: { onToast: (t: string, m: string) => void }) =>
   const [dbAchievements, setDbAchievements] = useState<any[]>([]);
   const [socialLinks, setSocialLinks] = useState<{ youtube: string, instagram: string }>({ youtube: '', instagram: '' });
   const [loading, setLoading] = useState(true);
+  const [selectedPlayerScreenshotStats, setSelectedPlayerScreenshotStats] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (!selectedPlayer) {
+      setSelectedPlayerScreenshotStats([]);
+      return;
+    }
+    const fetchScreenshotStats = async () => {
+      try {
+        const q = query(
+          collection(db, 'player_screenshot_stats'),
+          where('playerName', '==', selectedPlayer.ign)
+        );
+        const snap = await getDocs(q);
+        setSelectedPlayerScreenshotStats(snap.docs.map(d => d.data()));
+      } catch (err) {
+        console.error("Error loading selected player screenshot stats:", err);
+      }
+    };
+    fetchScreenshotStats();
+  }, [selectedPlayer?.id, selectedPlayer?.ign]);
 
   useEffect(() => {
     let unsubPlayers: () => void;
@@ -1082,28 +1105,51 @@ const RosterPage = ({ onToast }: { onToast: (t: string, m: string) => void }) =>
                           {p.game && <div className="text-[8px] font-black text-white/40 uppercase tracking-widest">{p.game}</div>}
                         </div>
 
-                        {selectedPlayer?.id === p.id && (
-                          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 w-full mt-6">
-                            <div className="bg-white/5 p-3 rounded-[2px] border border-white/5">
-                              <div className="text-[7px] text-neutral-500 uppercase font-black mb-1">SCRIMS KILLS</div>
-                              <div className="text-xl font-bebas text-white tracking-widest">{p.scrimsKills || 0}</div>
-                            </div>
-                            <div className="bg-white/5 p-3 rounded-[2px] border border-white/5">
-                              <div className="text-[7px] text-neutral-500 uppercase font-black mb-1">TOURNEY KILLS</div>
-                              <div className="text-xl font-bebas text-white tracking-widest">{p.tourneyKills || 0}</div>
-                            </div>
-                            <div className="bg-gold/5 p-3 rounded-[2px] border border-gold/10">
-                              <div className="text-[7px] text-gold uppercase font-black mb-1">TOTAL KILLS</div>
-                              <div className="text-xl font-bebas text-gold tracking-widest">{(p.scrimsKills || 0) + (p.tourneyKills || 0) + (p.openRoomKills || 0)}</div>
-                            </div>
-                            <div className="bg-gold/5 p-3 rounded-[2px] border border-gold/10">
-                              <div className="text-[7px] text-gold uppercase font-black mb-1">K/D RATIO</div>
-                              <div className="text-xl font-bebas text-gold tracking-widest">
-                                {(((p.scrimsKills || 0) + (p.tourneyKills || 0) + (p.openRoomKills || 0)) / Math.max(1, (p.scrimsMatches || 0) + (p.tourneyMatches || 0) + (p.openRoomMatches || 0))).toFixed(2)}
+                        {selectedPlayer?.id === p.id && (() => {
+                          const extraScrimsKills = selectedPlayerScreenshotStats.filter(r => (r.category || 'Scrims') === 'Scrims').reduce((sum, r) => sum + (r.kills || 0), 0);
+                          const extraScrimsMatches = selectedPlayerScreenshotStats.filter(r => (r.category || 'Scrims') === 'Scrims').reduce((sum, r) => sum + (r.matches || 0), 0);
+                          
+                          const extraTourneyKills = selectedPlayerScreenshotStats.filter(r => (r.category || 'Scrims') === 'Tournament').reduce((sum, r) => sum + (r.kills || 0), 0);
+                          const extraTourneyMatches = selectedPlayerScreenshotStats.filter(r => (r.category || 'Scrims') === 'Tournament').reduce((sum, r) => sum + (r.matches || 0), 0);
+
+                          const extraOpenKills = selectedPlayerScreenshotStats.filter(r => (r.category || 'Scrims') === 'Open Room Match').reduce((sum, r) => sum + (r.kills || 0), 0);
+                          const extraOpenMatches = selectedPlayerScreenshotStats.filter(r => (r.category || 'Scrims') === 'Open Room Match').reduce((sum, r) => sum + (r.matches || 0), 0);
+
+                          const displayScrimsKills = (p.scrimsKills || 0) + extraScrimsKills;
+                          const displayTourneyKills = (p.tourneyKills || 0) + extraTourneyKills;
+                          const displayOpenKills = (p.openRoomKills || 0) + extraOpenKills;
+
+                          const displayScrimsMatches = (p.scrimsMatches || 0) + extraScrimsMatches;
+                          const displayTourneyMatches = (p.tourneyMatches || 0) + extraTourneyMatches;
+                          const displayOpenMatches = (p.openRoomMatches || 0) + extraOpenMatches;
+
+                          const totalKills = displayScrimsKills + displayTourneyKills + displayOpenKills;
+                          const totalMatches = displayScrimsMatches + displayTourneyMatches + displayOpenMatches;
+                          const kdRatio = totalMatches > 0 ? (totalKills / totalMatches).toFixed(2) : '0.00';
+
+                          return (
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 w-full mt-6">
+                              <div className="bg-white/5 p-3 rounded-[2px] border border-white/5">
+                                <div className="text-[7px] text-neutral-500 uppercase font-black mb-1">SCRIMS KILLS</div>
+                                <div className="text-xl font-bebas text-white tracking-widest">{displayScrimsKills}</div>
+                              </div>
+                              <div className="bg-white/5 p-3 rounded-[2px] border border-white/5">
+                                <div className="text-[7px] text-neutral-500 uppercase font-black mb-1">TOURNEY KILLS</div>
+                                <div className="text-xl font-bebas text-white tracking-widest">{displayTourneyKills}</div>
+                              </div>
+                              <div className="bg-gold/5 p-3 rounded-[2px] border border-gold/10">
+                                <div className="text-[7px] text-gold uppercase font-black mb-1">TOTAL KILLS</div>
+                                <div className="text-xl font-bebas text-gold tracking-widest">{totalKills}</div>
+                              </div>
+                              <div className="bg-gold/5 p-3 rounded-[2px] border border-gold/10">
+                                <div className="text-[7px] text-gold uppercase font-black mb-1">K/D RATIO</div>
+                                <div className="text-xl font-bebas text-gold tracking-widest">
+                                  {kdRatio}
+                                </div>
                               </div>
                             </div>
-                          </div>
-                        )}
+                          );
+                        })()}
                       </div>
                     </div>
 
@@ -2491,13 +2537,15 @@ const TournamentPage = ({ onToast, user, onNavigate }: { onToast: (t: string, m:
         const data = dDoc.data();
         let exactSlotsCount = data.slots || 0;
         try {
-          const regsSnap = await getDocs(collection(db, 'tournaments', dDoc.id, 'registrations'));
-          exactSlotsCount = regsSnap.size;
-          if (data.slots !== exactSlotsCount) {
-            await updateDoc(doc(db, 'tournaments', dDoc.id), { slots: exactSlotsCount });
+          if (auth.currentUser) {
+            const regsSnap = await getDocs(collection(db, 'tournaments', dDoc.id, 'registrations'));
+            exactSlotsCount = regsSnap.size;
+            if (data.slots !== exactSlotsCount) {
+              await updateDoc(doc(db, 'tournaments', dDoc.id), { slots: exactSlotsCount });
+            }
           }
         } catch (e) {
-          console.error("Error syncing slots for", dDoc.id, e);
+          // Fallback silently for unauthenticated or non-admin users
         }
         return { id: dDoc.id, ...data, slots: exactSlotsCount };
       }));
@@ -7074,6 +7122,13 @@ const PlayerDossier = ({ player, onClose }: { player: RankingPlayer, onClose: ()
     return () => { active = false; };
   }, [player.ign]);
 
+  const totalScreenshotKills = screenshotRows.reduce((sum, r) => sum + (r.kills || 0), 0);
+  const totalScreenshotMatches = screenshotRows.reduce((sum, r) => sum + (r.matches || 0), 0);
+
+  const displayKills = (player.kills || 0) + totalScreenshotKills;
+  const displayMatches = (player.matches || 0) + totalScreenshotMatches;
+  const displayKd = displayMatches > 0 ? (displayKills / displayMatches).toFixed(2) : '0.00';
+
   return (
     <motion.div 
       initial={{ opacity: 0 }}
@@ -7141,9 +7196,9 @@ const PlayerDossier = ({ player, onClose }: { player: RankingPlayer, onClose: ()
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
             {[
-              { label: 'K/D Ratio', value: player.kd, trend: 'up', icon: TrendingUp, color: 'text-gold' },
-              { label: 'Matches', value: player.matches, icon: Gamepad2, color: 'text-blue-400' },
-              { label: 'Kill Count', value: player.kills, icon: Skull, color: 'text-red-500' },
+              { label: 'K/D Ratio', value: displayKd, trend: 'up', icon: TrendingUp, color: 'text-gold' },
+              { label: 'Matches', value: displayMatches, icon: Gamepad2, color: 'text-blue-400' },
+              { label: 'Kill Count', value: displayKills, icon: Skull, color: 'text-red-500' },
               { label: 'Win Rate', value: '72%', icon: Target, color: 'text-green-500' },
             ].map((stat, i) => (
               <div key={i} className="bg-white/5 border border-white/5 p-6 group hover:border-gold/20 transition-all">
@@ -7253,6 +7308,132 @@ const PlayerDossier = ({ player, onClose }: { player: RankingPlayer, onClose: ()
                    )}
                 </div>
              </div>
+          </div>
+
+          {/* Dynamic AI Telemetry Archive */}
+          <div className="mt-12 border-t border-white/5 pt-8 space-y-4">
+             <h3 className="text-white font-bebas text-2xl tracking-widest flex items-center gap-3">
+                <Cpu size={20} className="text-gold animate-pulse" /> Dynamic AI Telemetry Archive
+             </h3>
+             <p className="text-[10px] text-neutral-400 font-mono leading-relaxed">
+                Parsed statistics dynamically compiled from OCR analyzed endpoint match screens and verified screenshot captures.
+             </p>
+             
+             {screenshotLoading ? (
+                <div className="flex justify-center py-8">
+                   <Loader2 className="animate-spin text-gold" size={24} />
+                </div>
+             ) : screenshotRows.length === 0 ? (
+                <div className="py-8 text-center border border-dashed border-white/10 rounded-sm">
+                   <p className="text-[10px] text-neutral-500 uppercase font-bold tracking-widest">No verified screenshot telemetry on record for {player.ign}.</p>
+                </div>
+             ) : (
+                <div className="space-y-6">
+                   {/* Aggregate stats banner */}
+                   <div className="grid grid-cols-3 gap-2 font-mono text-center">
+                      <div className="bg-neutral-950 p-3 border border-white/5">
+                         <div className="text-[8px] text-neutral-500 uppercase tracking-widest">Kills Locked</div>
+                         <div className="font-orbitron font-black text-sm text-gold mt-1">
+                            {screenshotRows.reduce((sum, r) => sum + (r.kills || 0), 0)}
+                         </div>
+                      </div>
+                      <div className="bg-neutral-950 p-3 border border-white/5">
+                         <div className="text-[8px] text-neutral-500 uppercase tracking-widest">Matches Played</div>
+                         <div className="font-orbitron font-black text-sm text-white mt-1">
+                            {screenshotRows.reduce((sum, r) => sum + (r.matches || 0), 0)}
+                         </div>
+                      </div>
+                      <div className="bg-neutral-950 p-3 border border-white/5">
+                         <div className="text-[8px] text-neutral-500 uppercase tracking-widest">Calculated KD</div>
+                         <div className="font-orbitron font-black text-sm text-emerald-400 mt-1">
+                            {(() => {
+                               const totK = screenshotRows.reduce((sum, r) => sum + (r.kills || 0), 0);
+                               const totM = screenshotRows.reduce((sum, r) => sum + (r.matches || 0), 0);
+                               return totM ? (totK / totM).toFixed(2) : '0.00';
+                            })()}
+                         </div>
+                      </div>
+                   </div>
+
+                   {/* Category and Map charts/lists */}
+                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 font-mono text-[10px]">
+                      {/* Category Aggregation */}
+                      <div className="bg-neutral-950 p-4 border border-white/5">
+                         <h4 className="text-[9px] font-black text-gold uppercase tracking-widest mb-3 border-b border-white/5 pb-1">Categories</h4>
+                         <div className="space-y-2 font-mono">
+                            {['Scrims', 'Tournament', 'Open Room Match'].map(cat => {
+                               const matched = screenshotRows.filter(r => (r.category || 'Scrims') === cat);
+                               const mKills = matched.reduce((sum, r) => sum + (r.kills || 0), 0);
+                               const mMatches = matched.reduce((sum, r) => sum + (r.matches || 0), 0);
+                               return (
+                                  <div key={cat} className="flex justify-between items-center text-[9px]">
+                                     <span className="text-neutral-400 uppercase">{cat}</span>
+                                     <span className="text-white font-bold">{mKills} Kills / {mMatches} Matches</span>
+                                  </div>
+                               )
+                            })}
+                         </div>
+                      </div>
+
+                      {/* Map Aggregation */}
+                      <div className="bg-neutral-950 p-4 border border-white/5 max-h-40 overflow-y-auto font-mono">
+                         <h4 className="text-[9px] font-black text-gold uppercase tracking-widest mb-3 border-b border-white/5 pb-1">Maps Efficiencies</h4>
+                         <div className="space-y-2 font-mono">
+                            {Array.from(new Set(screenshotRows.map(r => r.map || 'Erangel'))).map(mapName => {
+                               const matched = screenshotRows.filter(r => (r.map || 'Erangel') === mapName);
+                               const mKills = matched.reduce((sum, r) => sum + (r.kills || 0), 0);
+                               const mMatches = matched.reduce((sum, r) => sum + (r.matches || 0), 0);
+                               return (
+                                  <div key={mapName} className="flex justify-between items-center text-[9px]">
+                                     <span className="text-neutral-400 uppercase">{mapName}</span>
+                                     <span className="text-white font-bold">{mKills} Kills / {mMatches} Matches</span>
+                                  </div>
+                               )
+                            })}
+                         </div>
+                      </div>
+                   </div>
+
+                   {/* Historical logs tables list */}
+                   <div className="bg-neutral-950 p-4 border border-white/5 font-mono">
+                      <h4 className="text-[9px] font-black text-white uppercase tracking-widest mb-2 flex items-center gap-2">
+                         <Database size={10} /> ML Extraction Record History
+                      </h4>
+                      <div className="max-h-40 overflow-y-auto overflow-x-auto text-[9px]">
+                         <table className="w-full text-left text-neutral-400 font-mono">
+                            <thead>
+                               <tr className="border-b border-white/10 uppercase text-[8px] font-black pb-1.5 text-neutral-500 font-mono">
+                                  <th className="py-1">Cat.</th>
+                                  <th className="py-1">Map</th>
+                                  <th className="py-1 text-center font-mono">Matches</th>
+                                  <th className="py-1 text-center font-mono">Kills</th>
+                                  <th className="py-1 text-right">Screenshot Link</th>
+                               </tr>
+                            </thead>
+                            <tbody className="divide-y divide-white/5 font-mono">
+                               {screenshotRows.map(row => (
+                                  <tr key={row.id} className="hover:text-white transition-all font-mono">
+                                     <td className="py-1 text-sky-400 font-bold">{row.category || 'Scrims'}</td>
+                                     <td className="py-1 text-amber-500 font-bold">{row.map || 'Erangel'}</td>
+                                     <td className="py-1 text-center text-white font-semibold">{row.matches}</td>
+                                     <td className="py-1 text-center text-gold font-bold">{row.kills}</td>
+                                     <td className="py-1 text-right">
+                                        {row.imageDriveLink ? (
+                                           <a href={row.imageDriveLink} target="_blank" rel="noreferrer" className="text-sky-400 hover:underline">
+                                              Drive Ref
+                                           </a>
+                                        ) : (
+                                           <span className="text-neutral-700">Internal</span>
+                                        )}
+                                     </td>
+                                  </tr>
+                               ))}
+                            </tbody>
+                         </table>
+                      </div>
+                   </div>
+                </div>
+             )}
           </div>
         </div>
       </motion.div>
@@ -7366,127 +7547,12 @@ const RankingPage = () => {
                     <div className="flex items-center gap-2">
                        <div className="text-[10px] text-neutral-500 font-bold uppercase tracking-tighter">{player.role}</div>
                        <span className="md:hidden text-[8px] font-black text-gold/80 uppercase tracking-widest bg-white/5 px-2 py-0.5 rounded-[2px] border border-white/5">
-                         {DIVISIONS[player.div]?.name || 'N/A'}
+                          {DIVISIONS[player.div]?.name || 'N/A'}
+
                        </span>
                     </div>
                  </div>
               </div>
-
-                 {/* TELEMETRY_ERASED */}
-                    <h3 className="text-white font-bebas text-2xl tracking-widest flex items-center gap-3">
-                       <Cpu size={20} className="text-gold animate-pulse" /> Dynamic AI Telemetry Archive
-                    </h3>
-                    <p className="text-[10px] text-neutral-400 font-mono leading-relaxed">
-                       Parsed statistics dynamically compiled from OCR analyzed endpoint match screens and verified screenshot captures.
-                    </p>
-                    
-                    {false ? null : (
-                       <div className="space-y-6">
-                          {/* Aggregate stats banner */}
-                          <div className="grid grid-cols-3 gap-2 font-mono text-center">
-                             <div className="bg-neutral-950 p-3 border border-white/5">
-                                <div className="text-[8px] text-neutral-500 uppercase tracking-widest">Kills Locked</div>
-                                <div className="font-orbitron font-black text-sm text-gold mt-1">
-                                   {screenshotRows.reduce((sum, r) => sum + (r.kills || 0), 0)}
-                                </div>
-                             </div>
-                             <div className="bg-neutral-950 p-3 border border-white/5">
-                                <div className="text-[8px] text-neutral-500 uppercase tracking-widest">Matches Played</div>
-                                <div className="font-orbitron font-black text-sm text-white mt-1">
-                                   {screenshotRows.reduce((sum, r) => sum + (r.matches || 0), 0)}
-                                </div>
-                             </div>
-                             <div className="bg-neutral-950 p-3 border border-white/5">
-                                <div className="text-[8px] text-neutral-500 uppercase tracking-widest">Calculated KD</div>
-                                <div className="font-orbitron font-black text-sm text-emerald-400 mt-1">
-                                   {(() => {
-                                      const totK = screenshotRows.reduce((sum, r) => sum + (r.kills || 0), 0);
-                                      const totM = screenshotRows.reduce((sum, r) => sum + (r.matches || 0), 0);
-                                      return totM ? (totK / totM).toFixed(2) : '0.00';
-                                   })()}
-                                </div>
-                             </div>
-                          </div>
-
-                          {/* Category and Map charts/lists */}
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 font-mono text-[10px]">
-                             {/* Category Aggregation */}
-                             <div className="bg-neutral-950 p-4 border border-white/5">
-                                <h4 className="text-[9px] font-black text-gold uppercase tracking-widest mb-3 border-b border-white/5 pb-1">Categories</h4>
-                                <div className="space-y-2 font-mono">
-                                   {['Scrims', 'Tournament', 'Open Room Match'].map(cat => {
-                                      const matched = screenshotRows.filter(r => (r.category || 'Scrims') === cat);
-                                      const mKills = matched.reduce((sum, r) => sum + (r.kills || 0), 0);
-                                      const mMatches = matched.reduce((sum, r) => sum + (r.matches || 0), 0);
-                                      return (
-                                         <div key={cat} className="flex justify-between items-center text-[9px]">
-                                            <span className="text-neutral-400 uppercase">{cat}</span>
-                                            <span className="text-white font-bold">{mKills} Kills / {mMatches} Matches</span>
-                                         </div>
-                                      )
-                                   })}
-                                </div>
-                             </div>
-
-                             {/* Map Aggregation */}
-                             <div className="bg-neutral-950 p-4 border border-white/5 max-h-40 overflow-y-auto font-mono">
-                                <h4 className="text-[9px] font-black text-gold uppercase tracking-widest mb-3 border-b border-white/5 pb-1">Maps Efficiencies</h4>
-                                <div className="space-y-2 font-mono">
-                                   {Array.from(new Set(screenshotRows.map(r => r.map || 'Erangel'))).map(mapName => {
-                                      const matched = screenshotRows.filter(r => (r.map || 'Erangel') === mapName);
-                                      const mKills = matched.reduce((sum, r) => sum + (r.kills || 0), 0);
-                                      const mMatches = matched.reduce((sum, r) => sum + (r.matches || 0), 0);
-                                      return (
-                                         <div key={mapName} className="flex justify-between items-center text-[9px]">
-                                            <span className="text-neutral-400 uppercase">{mapName}</span>
-                                            <span className="text-white font-bold">{mKills} Kills / {mMatches} Matches</span>
-                                         </div>
-                                      )
-                                   })}
-                                </div>
-                             </div>
-                          </div>
-
-                          {/* Historical logs tables list */}
-                          <div className="bg-neutral-950 p-4 border border-white/5 font-mono">
-                             <h4 className="text-[9px] font-black text-white uppercase tracking-widest mb-2 flex items-center gap-2">
-                                <Database size={10} /> ML Extraction Record History
-                             </h4>
-                             <div className="max-h-40 overflow-y-auto overflow-x-auto text-[9px]">
-                                <table className="w-full text-left text-neutral-400 font-mono">
-                                   <thead>
-                                      <tr className="border-b border-white/10 uppercase text-[8px] font-black pb-1.5 text-neutral-500 font-mono">
-                                         <th className="py-1">Cat.</th>
-                                         <th className="py-1">Map</th>
-                                         <th className="py-1 text-center font-mono">Matches</th>
-                                         <th className="py-1 text-center font-mono">Kills</th>
-                                         <th className="py-1 text-right">Screenshot Link</th>
-                                      </tr>
-                                   </thead>
-                                   <tbody className="divide-y divide-white/5 font-mono">
-                                      {screenshotRows.map(row => (
-                                         <tr key={row.id} className="hover:text-white transition-all font-mono">
-                                            <td className="py-1 text-sky-400 font-bold">{row.category || 'Scrims'}</td>
-                                            <td className="py-1 text-amber-500 font-bold">{row.map || 'Erangel'}</td>
-                                            <td className="py-1 text-center text-white font-semibold">{row.matches}</td>
-                                            <td className="py-1 text-center text-gold font-bold">{row.kills}</td>
-                                            <td className="py-1 text-right">
-                                               {row.imageDriveLink ? (
-                                                  <a href={row.imageDriveLink} target="_blank" rel="noreferrer" className="text-sky-400 hover:underline">
-                                                     Drive Ref
-                                                  </a>
-                                               ) : (
-                                                  <span className="text-neutral-700">Internal</span>
-                                               )}
-                                            </td>
-                                         </tr>
-                                      ))}
-                                   </tbody>
-                                </table>
-                             </div>
-                          </div>
-                       </div>
-                    )}
 
 
               {/* Stats Grid - Responsive behavior */}

@@ -135,17 +135,13 @@ service cloud.firestore {
     }
 
     function isValidRegistration(data, tId) {
-      return data.keys().hasAll(['teamName', 'leaderName', 'ign', 'playerId', 'uid', 'email', 'createdAt', 'status']) &&
+      return data.keys().hasAll(['teamName', 'leaderName', 'ign', 'playerId', 'uid', 'status']) &&
              data.uid == request.auth.uid &&
-             data.email == request.auth.token.email &&
              data.status == 'pending' &&
-             data.createdAt == request.time &&
-             data.teamName is string && data.teamName.size() <= 128 &&
-             data.leaderName is string && data.leaderName.size() <= 128 &&
-             data.ign is string && data.ign.size() <= 128 &&
-             data.playerId is string && data.playerId.size() <= 128 &&
-             (data.get('discordId', '') is string) &&
-             exists(/databases/$(database)/documents/tournaments/$(tId));
+             data.teamName is string &&
+             data.leaderName is string &&
+             data.ign is string &&
+             data.playerId is string;
     }
 
     // --- Collections ---

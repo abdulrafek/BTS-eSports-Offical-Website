@@ -19,6 +19,7 @@ import {
   Youtube, 
   MessageSquare, 
   Smartphone,
+  ChevronLeft,
   ChevronRight,
   TrendingUp,
   TrendingDown,
@@ -2571,6 +2572,9 @@ const SignInPage = ({ onToast, user, isAdmin, onNavigate }: { onToast: (t: strin
 const TournamentPage = ({ onToast, user, onNavigate }: { onToast: (t: string, m: string) => void, user: User | null, onNavigate: (p: Page, d?: any) => void }) => {
   const [dbTournaments, setDbTournaments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<'grid' | 'calendar'>('grid');
+  const [currentDate, setCurrentDate] = useState<Date>(new Date());
+  const [selectedDay, setSelectedDay] = useState<number | null>(null);
 
   const fetchTournaments = async () => {
     try {
@@ -2603,37 +2607,453 @@ const TournamentPage = ({ onToast, user, onNavigate }: { onToast: (t: string, m:
     fetchTournaments();
   }, []);
 
+  const parseTournamentDate = (dateStr: string): Date | null => {
+    if (!dateStr) return null;
+    const cleanStr = dateStr.trim();
+    const d = new Date(cleanStr);
+    if (!isNaN(d.getTime())) {
+      return d;
+    }
+    try {
+      const parts = cleanStr.replace(/[-/,]/g, ' ').split(/\s+/);
+      if (parts.length >= 3) {
+        let dayStr = parts[0];
+        let monthStr = parts[1];
+        let yearStr = parts[2];
+        if (dayStr.length === 4) {
+          yearStr = parts[0];
+          monthStr = parts[1];
+          dayStr = parts[2];
+        }
+        const day = parseInt(dayStr, 10);
+        const year = parseInt(yearStr, 10);
+        const months = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
+        const monthsFull = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"];
+        let monthIndex = -1;
+        if (/^\d+$/.test(monthStr)) {
+          monthIndex = parseInt(monthStr, 10) - 1;
+        } else {
+          const lowerMonth = monthStr.toLowerCase();
+          monthIndex = months.findIndex(m => lowerMonth.startsWith(m));
+          if (monthIndex === -1) {
+            monthIndex = monthsFull.findIndex(m => lowerMonth.startsWith(m));
+          }
+        }
+        if (monthIndex >= 0 && monthIndex < 12 && !isNaN(day) && !isNaN(year)) {
+          return new Date(year, monthIndex, day);
+        }
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    return null;
+  };
+
+  const tournamentsWithDates = useMemo(() => {
+    return dbTournaments.map(t => {
+      const pd = parseTournamentDate(t.date);
+      return { ...t, parsedDate: pd };
+    });
+  }, [dbTournaments]);
+
+  const sortedChronologicalEvents = useMemo(() => {
+    return tournamentsWithDates
+      .filter(t => t.parsedDate !== null)
+      .sort((a, b) => (a.parsedDate as Date).getTime() - (b.parsedDate as Date).getTime());
+  }, [tournamentsWithDates]);
+
+  const currentYear = currentDate.getFullYear();
+  const currentMonth = currentDate.getMonth();
+
+  const firstDayIndex = new Date(currentYear, currentMonth, 1).getDay();
+  const totalMonthDays = new Date(currentYear, currentMonth + 1, 0).getDate();
+
+  const calendarDays = useMemo(() => {
+    const days: (number | null)[] = [];
+    for (let i = 0; i < firstDayIndex; i++) {
+      days.push(null);
+    }
+    for (let i = 1; i <= totalMonthDays; i++) {
+      days.push(i);
+    }
+    return days;
+  }, [firstDayIndex, totalMonthDays]);
+
+  const monthName = currentDate.toLocaleString('default', { month: 'long' }).toUpperCase();
+
+  const handlePrevMonth = () => {
+    setSelectedDay(null);
+    setCurrentDate(new Date(currentYear, currentMonth - 1, 1));
+  };
+
+  const handleNextMonth = () => {
+    setSelectedDay(null);
+    setCurrentDate(new Date(currentYear, currentMonth + 1, 1));
+  };
+
+  const handleToday = () => {
+    setSelectedDay(null);
+    setCurrentDate(new Date());
+  };
+
+  const getTournamentsForDay = (dayNum: number) => {
+    return tournamentsWithDates.filter(t => {
+      if (!t.parsedDate) return false;
+      return t.parsedDate.getFullYear() === currentYear &&
+             t.parsedDate.getMonth() === currentMonth &&
+             t.parsedDate.getDate() === dayNum;
+    });
+  };
+
+  const isToday = (dayNum: number) => {
+    const today = new Date();
+    return today.getFullYear() === currentYear &&
+           today.getMonth() === currentMonth &&
+           today.getDate() === dayNum;
+  };
+
+  // Filter selected day tournaments
+  const selectedDayTournaments = useMemo(() => {
+    if (selectedDay === null) return [];
+    return getTournamentsForDay(selectedDay);
+  }, [selectedDay, tournamentsWithDates, currentYear, currentMonth]);
+
+  const formatChronologicalDate = (date: Date) => {
+    const monthsShort = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
+    return {
+      day: date.getDate(),
+      month: monthsShort[date.getMonth()],
+      year: date.getFullYear()
+    };
+  };
+
   return (
     <div className="pt-24 container mx-auto px-4 min-h-screen">
       <SectionHeader tag="Competitive" title="Active" goldSpan="Tournaments" sub="Register now to compete. All matches are held on official servers." />
       
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pb-24">
-        {loading ? (
-          <div className="col-span-full text-center py-12 text-gold animate-pulse font-bold tracking-widest text-xs">Syncing with server...</div>
-        ) : dbTournaments.length === 0 ? (
-          <div className="col-span-full text-center py-20 text-neutral-600 uppercase tracking-widest text-xs">No active tournaments discovered</div>
-        ) : (
-          dbTournaments.map((t) => (
-            <TournamentCard 
-              key={t.id} 
-              tournament={{
-                id: t.id,
-                name: t.name,
-                game: t.game,
-                prize: t.prize || 'TBD',
-                slots: t.slots || 0,
-                total: t.total || 0,
-                status: t.status as any,
-                date: t.date || 'Upcoming',
-                imageUrl: t.imageUrl || ''
-              }} 
-              onToast={onToast} 
-              user={user}
-              onNavigate={onNavigate}
-            />
-          ))
-        )}
+      {/* Modern Esports Tab Selector */}
+      <div className="flex justify-center gap-4 mb-12">
+        <button
+          onClick={() => setActiveTab('grid')}
+          className={`px-6 py-2.5 font-orbitron font-bold text-[10px] uppercase tracking-widest border transition-all duration-300 flex items-center gap-2 ${activeTab === 'grid' ? 'bg-gold text-black border-gold shadow-[0_0_15px_rgba(212,175,55,0.25)]' : 'bg-transparent text-neutral-400 border-white/10 hover:border-gold/30 hover:text-white'}`}
+        >
+          <Gamepad2 size={14} />
+          All Tournaments ({dbTournaments.length})
+        </button>
+        <button
+          onClick={() => setActiveTab('calendar')}
+          className={`px-6 py-2.5 font-orbitron font-bold text-[10px] uppercase tracking-widest border transition-all duration-300 flex items-center gap-2 ${activeTab === 'calendar' ? 'bg-gold text-black border-gold shadow-[0_0_15px_rgba(212,175,55,0.25)]' : 'bg-transparent text-neutral-400 border-white/10 hover:border-gold/30 hover:text-white'}`}
+        >
+          <Calendar size={14} />
+          Events Calendar
+        </button>
       </div>
+
+      {activeTab === 'grid' ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pb-24">
+          {loading ? (
+            <div className="col-span-full text-center py-12 text-gold animate-pulse font-bold tracking-widest text-xs">Syncing with server...</div>
+          ) : dbTournaments.length === 0 ? (
+            <div className="col-span-full text-center py-20 text-neutral-600 uppercase tracking-widest text-xs">No active tournaments discovered</div>
+          ) : (
+            dbTournaments.map((t) => (
+              <TournamentCard 
+                key={t.id} 
+                tournament={{
+                  id: t.id,
+                  name: t.name,
+                  game: t.game,
+                  prize: t.prize || 'TBD',
+                  slots: t.slots || 0,
+                  total: t.total || 0,
+                  status: t.status as any,
+                  date: t.date || 'Upcoming',
+                  imageUrl: t.imageUrl || ''
+                }} 
+                onToast={onToast} 
+                user={user}
+                onNavigate={onNavigate}
+              />
+            ))
+          )}
+        </div>
+      ) : (
+        /* Calendar View Main Grid Layout */
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 pb-24">
+          {/* Calendar Controller & Grid */}
+          <div className="lg:col-span-2 bg-neutral-900/40 border border-white/5 p-6 rounded-sm relative overflow-hidden backdrop-blur-md">
+            <div className="absolute top-0 right-0 w-48 h-48 bg-gold/5 -rotate-45 translate-x-20 -translate-y-20 pointer-events-none" />
+            
+            {/* Header / Month Picker */}
+            <div className="flex flex-col sm:flex-row justify-between items-center gap-4 mb-6 pb-6 border-b border-white/5">
+              <div className="flex items-center gap-3">
+                <div className="bg-gold/10 p-2 border border-gold/20 text-gold rounded-sm">
+                  <Calendar size={18} />
+                </div>
+                <div>
+                  <h2 className="font-bebas text-3xl text-white tracking-widest leading-none">{monthName}</h2>
+                  <p className="font-mono text-[10px] text-neutral-500 tracking-wider font-bold mt-1">YEAR SCHEDULE: {currentYear}</p>
+                </div>
+              </div>
+              
+              <div className="flex items-center gap-2">
+                <button 
+                  onClick={handleToday}
+                  className="px-3 py-1 text-[10px] font-orbitron font-black text-neutral-400 hover:text-white border border-white/10 hover:border-white/20 transition-all rounded-sm uppercase tracking-widest"
+                >
+                  TODAY
+                </button>
+                <button 
+                  onClick={handlePrevMonth}
+                  className="p-1.5 text-neutral-400 hover:text-gold border border-white/10 hover:border-gold/20 transition-all rounded-sm"
+                  aria-label="Previous Month"
+                >
+                  <ChevronLeft size={16} />
+                </button>
+                <button 
+                  onClick={handleNextMonth}
+                  className="p-1.5 text-neutral-400 hover:text-gold border border-white/10 hover:border-gold/20 transition-all rounded-sm"
+                  aria-label="Next Month"
+                >
+                  <ChevronRight size={16} />
+                </button>
+              </div>
+            </div>
+
+            {/* Days of Week Header */}
+            <div className="grid grid-cols-7 gap-1 text-center mb-1">
+              {['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'].map((day) => (
+                <div key={day} className="text-[10px] font-orbitron font-bold text-neutral-500 py-2 bg-neutral-900/50 border border-white/5">
+                  {day}
+                </div>
+              ))}
+            </div>
+
+            {/* Month Day Cells */}
+            <div className="grid grid-cols-7 gap-1">
+              {loading ? (
+                <div className="col-span-full text-center py-24 text-gold animate-pulse font-mono text-xs uppercase tracking-widest">
+                  Loading schedules...
+                </div>
+              ) : (
+                calendarDays.map((day, idx) => {
+                  if (day === null) {
+                    return (
+                      <div 
+                        key={`empty-${idx}`} 
+                        className="aspect-square bg-neutral-950/20 border border-white/5 opacity-20 min-h-[70px] md:min-h-[85px]"
+                      />
+                    );
+                  }
+
+                  const dayEvents = getTournamentsForDay(day);
+                  const isDaySelected = selectedDay === day;
+                  const isDayToday = isToday(day);
+
+                  return (
+                    <div
+                      key={`day-${day}`}
+                      onClick={() => setSelectedDay(selectedDay === day ? null : day)}
+                      className={`aspect-square p-2 border relative flex flex-col justify-between transition-all group select-none min-h-[70px] md:min-h-[85px] cursor-pointer ${
+                        isDaySelected 
+                          ? 'bg-gold/10 border-gold shadow-[0_0_10px_rgba(212,175,55,0.15)]' 
+                          : isDayToday 
+                            ? 'bg-neon-red/5 border-neon-red/40 hover:border-neon-red' 
+                            : 'bg-neutral-900/30 border-white/5 hover:bg-neutral-900/70 hover:border-gold/40'
+                      }`}
+                    >
+                      {/* Day Number */}
+                      <span className={`font-orbitron font-bold text-[11px] ${
+                        isDaySelected 
+                          ? 'text-gold' 
+                          : isDayToday 
+                            ? 'text-neon-red' 
+                            : 'text-neutral-500 group-hover:text-white'
+                      }`}>
+                        {day}
+                      </span>
+
+                      {/* Event Mini-Badges */}
+                      <div className="flex flex-col gap-1 mt-auto">
+                        {dayEvents.slice(0, 2).map((ev) => (
+                          <div 
+                            key={ev.id} 
+                            className={`text-[8px] font-black px-1 py-0.5 rounded-sm truncate w-full flex items-center gap-1 ${
+                              ev.status === 'open' 
+                                ? 'bg-green-500/10 text-green-400 border border-green-500/20' 
+                                : ev.status === 'upcoming'
+                                  ? 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20'
+                                  : 'bg-gold/10 text-gold border border-gold/20'
+                            }`}
+                          >
+                            <span className="w-1 h-1 rounded-full bg-current animate-pulse shrink-0" />
+                            <span className="truncate">{ev.game}</span>
+                          </div>
+                        ))}
+                        {dayEvents.length > 2 && (
+                          <div className="text-[7px] font-bold text-neutral-400 text-center font-mono uppercase tracking-wider">
+                            +{dayEvents.length - 2} More
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+
+          {/* Details / Chronological Upcoming Timeline Pane */}
+          <div className="bg-neutral-900/40 border border-white/5 p-6 rounded-sm flex flex-col h-full backdrop-blur-md">
+            {selectedDay !== null ? (
+              /* Events for Selected Day */
+              <div className="flex-grow flex flex-col">
+                <div className="flex justify-between items-center mb-6 pb-4 border-b border-white/5">
+                  <div>
+                    <h3 className="font-bebas text-2xl text-white tracking-widest uppercase">DAY SCHEDULE</h3>
+                    <p className="font-orbitron text-[10px] text-gold tracking-widest font-bold mt-1">
+                      {selectedDay} {monthName} {currentYear}
+                    </p>
+                  </div>
+                  <button 
+                    onClick={() => setSelectedDay(null)}
+                    className="text-[9px] font-orbitron font-black text-neutral-400 hover:text-white px-2 py-1 border border-white/10 hover:border-white/20 rounded-sm uppercase tracking-widest"
+                  >
+                    Clear Filter
+                  </button>
+                </div>
+
+                <div className="space-y-4 flex-grow overflow-y-auto max-h-[420px] pr-1 scrollbar-thin">
+                  {selectedDayTournaments.length === 0 ? (
+                    <div className="text-center py-20 text-neutral-600 font-bebas text-xl tracking-widest uppercase">
+                      No events scheduled for this day
+                    </div>
+                  ) : (
+                    selectedDayTournaments.map((t) => (
+                      <div 
+                        key={t.id} 
+                        className="bg-black/40 border border-gold/15 p-4 rounded-sm relative overflow-hidden group hover:border-gold/40 transition-all"
+                      >
+                        <div className="flex justify-between items-start mb-3">
+                          <div>
+                            <span className="text-[9px] font-bold text-gold tracking-widest uppercase font-orbitron block mb-0.5">{t.game}</span>
+                            <h4 className="font-bebas text-xl text-white tracking-wider">{t.name}</h4>
+                          </div>
+                          <span className={`text-[8px] font-bold uppercase tracking-widest px-1.5 py-0.5 border rounded-sm ${
+                            t.status === 'open' 
+                              ? 'bg-green-500/20 text-green-400 border-green-500/30' 
+                              : t.status === 'upcoming' 
+                                ? 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30' 
+                                : 'bg-gold/20 text-gold border-gold/30'
+                          }`}>
+                            {t.status}
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2 text-[10px] font-mono text-neutral-400 mb-4 bg-white/5 p-2 rounded-sm border border-white/5">
+                          <div>
+                            <span className="text-[8px] font-bold text-neutral-500 uppercase tracking-widest block">Prize Pool</span>
+                            <span className="font-bold text-white flex items-center gap-1"><IndianRupee size={10}/>{(t.pool || t.prize || '0').replace('₹', '')}</span>
+                          </div>
+                          <div>
+                            <span className="text-[8px] font-bold text-neutral-500 uppercase tracking-widest block">Entry Fee</span>
+                            <span className="font-bold text-white flex items-center gap-1"><IndianRupee size={10}/>{(t.fee || 'FREE').replace('₹', '')}</span>
+                          </div>
+                        </div>
+
+                        {t.status === 'open' ? (
+                          <button
+                            onClick={() => {
+                              if (!user) {
+                                onToast('Login Required', 'Please sign in to register.');
+                                onNavigate('signin', t);
+                              } else {
+                                onNavigate('registration', t);
+                              }
+                            }}
+                            className="w-full bg-gold hover:bg-gold-light text-black py-2 text-xs font-bold uppercase tracking-widest font-orbitron transition-all"
+                          >
+                            REGISTER NOW
+                          </button>
+                        ) : (
+                          <button
+                            disabled
+                            className="w-full border border-white/10 text-neutral-500 py-2 text-xs font-bold uppercase tracking-widest font-orbitron"
+                          >
+                            {t.status === 'finished' ? 'FINISHED' : 'REGISTRATION CLOSED'}
+                          </button>
+                        )}
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            ) : (
+              /* Chronological Upcoming Timeline (No specific day selected) */
+              <div className="flex-grow flex flex-col h-full">
+                <div className="mb-6 pb-4 border-b border-white/5">
+                  <h3 className="font-bebas text-2xl text-white tracking-widest uppercase flex items-center gap-2">
+                    <div className="w-1.5 h-1.5 rounded-full bg-gold animate-pulse" />
+                    UPCOMING EVENTS
+                  </h3>
+                  <p className="font-mono text-[9px] text-neutral-500 tracking-widest font-bold mt-1 uppercase">
+                    Chronological tournament timeline
+                  </p>
+                </div>
+
+                <div className="space-y-4 flex-grow overflow-y-auto max-h-[450px] pr-1 scrollbar-thin">
+                  {sortedChronologicalEvents.length === 0 ? (
+                    <div className="text-center py-20 text-neutral-600 font-bebas text-xl tracking-widest uppercase">
+                      No upcoming tournaments with dates
+                    </div>
+                  ) : (
+                    sortedChronologicalEvents.map((t) => {
+                      const dateObj = t.parsedDate as Date;
+                      const formattedDate = formatChronologicalDate(dateObj);
+                      
+                      return (
+                        <div 
+                          key={t.id} 
+                          onClick={() => {
+                            // Automatically focus on this date's month and day
+                            setCurrentDate(new Date(dateObj.getFullYear(), dateObj.getMonth(), 1));
+                            setSelectedDay(dateObj.getDate());
+                          }}
+                          className="flex gap-4 p-3 bg-neutral-900/60 hover:bg-neutral-900 border border-white/5 hover:border-gold/30 rounded-sm cursor-pointer transition-all group"
+                        >
+                          {/* Date Bubble */}
+                          <div className="flex flex-col items-center justify-center bg-black/60 border border-white/10 group-hover:border-gold/30 w-12 h-14 rounded-sm text-center shrink-0 transition-colors">
+                            <span className="font-orbitron font-black text-white text-base leading-none">{formattedDate.day}</span>
+                            <span className="font-mono text-[8px] font-black text-gold tracking-widest mt-1">{formattedDate.month}</span>
+                          </div>
+
+                          {/* Event info */}
+                          <div className="flex-grow min-w-0">
+                            <span className="text-[8px] font-black text-neutral-500 group-hover:text-gold uppercase tracking-widest font-orbitron block mb-0.5">
+                              {t.game}
+                            </span>
+                            <h4 className="font-bebas text-lg text-white group-hover:text-gold tracking-wide truncate transition-colors leading-tight">
+                              {t.name}
+                            </h4>
+                            <div className="flex items-center gap-3 mt-1.5 text-[9px] font-mono text-neutral-400">
+                              <span className="flex items-center gap-1 font-bold">
+                                <IndianRupee size={9} />
+                                {(t.pool || t.prize || '0').replace('₹', '')}
+                              </span>
+                              <span>•</span>
+                              <span className="uppercase font-bold tracking-wider">{t.status}</span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -7679,95 +8099,6 @@ const RegistrationPage = ({ tournament, user, onNavigate, onToast }: { tournamen
     agree: false
   });
 
-  const fetchInGameName = async (uid: string): Promise<string> => {
-    const trimmed = uid.trim();
-    if (!trimmed || !/^\d+$/.test(trimmed)) return '';
-
-    // Direct mappings from user's video demo
-    if (trimmed === '55525872206') return 'BTSxDyno';
-    if (trimmed === '5679052915') return 'BTSxGlitch';
-    if (trimmed === '55675042719') return 'BTSxRaptor';
-    if (trimmed === '5304910633') return 'BTSxViper';
-    if (trimmed === '5514668829' || trimmed === '5112994141') return 'BTSxSlayer';
-    if (trimmed === '5142806084') return 'BTSxPhoenix';
-
-    try {
-      // Query local database collections to see if player already exists
-      const q1 = query(collection(db, 'squad'), where('id', '==', trimmed));
-      const snap1 = await getDocs(q1);
-      if (!snap1.empty) {
-        return snap1.docs[0].data().ign || 'BTSxPlayer';
-      }
-
-      const q2 = query(collection(db, 'squad'), where('uid', '==', trimmed));
-      const snap2 = await getDocs(q2);
-      if (!snap2.empty) {
-        return snap2.docs[0].data().ign || 'BTSxPlayer';
-      }
-
-      const q3 = query(collection(db, 'applications'), where('gameUid', '==', trimmed));
-      const snap3 = await getDocs(q3);
-      if (!snap3.empty) {
-        return snap3.docs[0].data().ign || 'BTSxPlayer';
-      }
-    } catch (err) {
-      console.warn("Firestore UID query fallback:", err);
-    }
-
-    // Dynamic generation fallback
-    const nicknames = ['Falcon', 'Hunter', 'Specter', 'Slayer', 'Zeus', 'Titan', 'Apex', 'Phantom', 'Storm', 'Shadow', 'Neo', 'Vortex', 'Blitz', 'Venom', 'Rogue'];
-    let hash = 0;
-    for (let i = 0; i < trimmed.length; i++) {
-      hash = trimmed.charCodeAt(i) + ((hash << 5) - hash);
-    }
-    const index = Math.abs(hash) % nicknames.length;
-    return `BTSx${nicknames[index]}`;
-  };
-
-  // Track captain's character ID to auto-fetch IGN
-  useEffect(() => {
-    const trimmed = formData.playerId.trim();
-    if (trimmed.length >= 8 && /^\d+$/.test(trimmed)) {
-      const delayDebounce = setTimeout(async () => {
-        setFormData(prev => ({ ...prev, ign: 'Fetching...' }));
-        await new Promise(resolve => setTimeout(resolve, 800));
-        const resolvedName = await fetchInGameName(trimmed);
-        setFormData(prev => ({ ...prev, ign: resolvedName }));
-      }, 500);
-      return () => clearTimeout(delayDebounce);
-    }
-  }, [formData.playerId]);
-
-  // Track squad member UIDs to auto-fetch IGN
-  useEffect(() => {
-    formData.squad.forEach((member, i) => {
-      const trimmed = member.uid.trim();
-      if (trimmed.length >= 8 && /^\d+$/.test(trimmed)) {
-        if (member.ign === '' || member.ign === 'Fetching...' || member.ign.includes('Fetched')) {
-          const delayDebounce = setTimeout(async () => {
-            setFormData(prev => {
-              const updatedSquad = [...prev.squad];
-              if (updatedSquad[i].ign !== 'Fetching...') {
-                updatedSquad[i].ign = 'Fetching...';
-              }
-              return { ...prev, squad: updatedSquad };
-            });
-
-            await new Promise(resolve => setTimeout(resolve, 800));
-            const resolvedName = await fetchInGameName(trimmed);
-
-            setFormData(prev => {
-              const updatedSquad = [...prev.squad];
-              updatedSquad[i].ign = resolvedName;
-              return { ...prev, squad: updatedSquad };
-            });
-          }, 500);
-          return () => clearTimeout(delayDebounce);
-        }
-      }
-    });
-  }, [JSON.stringify(formData.squad.map(s => s.uid))]);
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.agree) {
@@ -7824,8 +8155,8 @@ const RegistrationPage = ({ tournament, user, onNavigate, onToast }: { tournamen
         discordId: formData.discordId.trim(),
         contact: formData.contact.trim(),
         squad: formData.squad.filter(s => s.ign.trim() !== '' || s.uid.trim() !== ''),
-        uid: user.uid,
-        email: user.email,
+        uid: user.uid || '',
+        email: user.email || '',
         tournamentName: tournament.name,
         status: 'pending',
         createdAt: serverTimestamp()
@@ -7836,29 +8167,8 @@ const RegistrationPage = ({ tournament, user, onNavigate, onToast }: { tournamen
         slots: actualRegistrationsCount + 1
       });
 
-      // 6. Send confirmation email via backend proxy
-      try {
-        await fetch('/api/send-registration-email', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            email: user.email,
-            teamName: formData.teamName.trim(),
-            leaderName: formData.playerName.trim(),
-            ign: formData.ign.trim(),
-            playerId: formData.playerId.trim(),
-            tournamentName: tournament.name,
-            discordId: formData.discordId.trim(),
-            contact: formData.contact.trim(),
-            squad: formData.squad.filter(s => s.ign.trim() !== '' || s.uid.trim() !== ''),
-          })
-        });
-      } catch (emailErr) {
-        console.warn("Could not dispatch confirmation email proxy:", emailErr);
-      }
-
       setIsSuccess(true);
-      onToast('Success ✅', 'Registration Successful! Confirmation email has been sent.');
+      onToast('Success ✅', 'Registration Successful!');
     } catch (error: any) {
       console.error("Tournament registration write failed:", error);
       let errorMessage = 'Failed to submit registration. Please try again.';
@@ -7905,9 +8215,7 @@ const RegistrationPage = ({ tournament, user, onNavigate, onToast }: { tournamen
           </div>
           <h2 className="font-bebas text-5xl text-white tracking-[0.1em] mb-4">Registration Successful ✅</h2>
           <p className="text-neutral-400 text-sm font-mono mb-8 uppercase tracking-widest leading-relaxed">
-            Deployment order confirmed for <span className="text-gold">{tournament.name}</span>. <br/>
-            Confirmation signal transmitted to: <br/>
-            <span className="text-white font-bold">{user.email}</span>
+            Deployment order confirmed for <span className="text-gold">{tournament.name}</span>.
           </p>
           <div className="flex flex-col gap-4">
              <button 
@@ -7988,16 +8296,9 @@ const RegistrationPage = ({ tournament, user, onNavigate, onToast }: { tournamen
               required
               value={formData.ign}
               onChange={e => setFormData({...formData, ign: e.target.value})}
-              placeholder="Fetched automatically"
-              className={`w-full border p-4 text-sm outline-none font-mono transition-all ${
-                formData.ign === 'Fetching...' 
-                  ? 'bg-neutral-800 border-gold/40 text-gold animate-pulse' 
-                  : formData.ign 
-                    ? 'bg-neutral-900/60 border-emerald-500/30 text-emerald-400 font-bold' 
-                    : 'bg-black/40 border-white/10 text-neutral-400'
-              }`}
+              placeholder="Your In-Game Name (IGN)"
+              className="w-full bg-black/40 border border-white/10 p-4 text-sm text-white focus:border-gold outline-none font-mono"
             />
-            <p className="text-[8px] text-neutral-600 uppercase font-bold">Auto-resolved from Player Character ID below</p>
           </div>
           <div className="space-y-2">
             <label className="text-[10px] font-black text-neutral-500 uppercase tracking-[0.2em]">Player Character ID *</label>
@@ -8050,14 +8351,8 @@ const RegistrationPage = ({ tournament, user, onNavigate, onToast }: { tournamen
                       newSquad[i].ign = e.target.value;
                       setFormData({...formData, squad: newSquad});
                     }}
-                    placeholder="Fetched automatically"
-                    className={`w-full border p-3 text-[10px] outline-none transition-all ${
-                      member.ign === 'Fetching...' 
-                        ? 'bg-neutral-800 border-gold/40 text-gold animate-pulse' 
-                        : member.ign 
-                          ? 'bg-neutral-900/60 border-emerald-500/20 text-emerald-400 font-bold' 
-                          : 'bg-black/20 border-white/5 text-neutral-400'
-                    }`}
+                    placeholder="In-Game Name (IGN)"
+                    className="w-full bg-black/20 border border-white/5 p-3 text-[10px] text-white focus:border-gold outline-none placeholder:text-neutral-500 font-mono font-bold"
                   />
                   <input 
                     value={member.uid}

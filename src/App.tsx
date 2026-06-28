@@ -578,7 +578,7 @@ const Home = ({ onNavigate, onToast, userRole, isAdmin, user, branding }: { onNa
             </div>
             <div className="space-y-4">
               {displayTournaments.map((t, i) => (
-                <div key={i} className="group bg-neutral-900/50 border border-white/5 p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 hover:border-gold/20 transition-all cursor-pointer" onClick={() => onNavigate('tournament')}>
+                <div key={i} className="group bg-neutral-900/50 border border-white/5 p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 hover:border-gold/20 transition-all cursor-pointer" onClick={() => onNavigate('tournament-details', t)}>
                   <div className="flex items-center gap-4">
                     <div className="w-12 h-12 bg-gold/10 border border-gold/20 rounded-md flex items-center justify-center font-orbitron font-black text-gold">
                       {t.name?.charAt(0) || 'T'}
@@ -644,12 +644,7 @@ const TournamentCard = ({ tournament, onToast, user, onNavigate }: { tournament:
   };
 
   const handleRegister = () => {
-    if (!user) {
-      onToast('Login Required', 'Please sign in to register for tournaments.');
-      onNavigate('signin', tournament);
-      return;
-    }
-    onNavigate('registration', tournament);
+    onNavigate('tournament-details', tournament);
   };
 
   return (
@@ -714,14 +709,17 @@ const TournamentCard = ({ tournament, onToast, user, onNavigate }: { tournament:
           </button>
         ) : tournament.status === 'upcoming' ? (
           <button 
-            onClick={() => onToast('Reminder Set', 'We will notify you when slots open!')}
+            onClick={() => onNavigate('tournament-details', tournament)}
             className="btn-clip border border-gold text-gold w-full py-3 font-bold uppercase tracking-widest hover:bg-gold/10 transition-colors"
           >
-            Set Reminder
+            View Details
           </button>
         ) : (
-          <button className="btn-clip border border-white/10 text-white/30 w-full py-3 font-bold uppercase tracking-widest cursor-not-allowed">
-            Closed
+          <button 
+            onClick={() => onNavigate('tournament-details', tournament)}
+            className="btn-clip border border-white/10 text-white/70 w-full py-3 font-bold uppercase tracking-widest hover:bg-white/5 transition-colors"
+          >
+            View Details
           </button>
         )}
 
@@ -2964,12 +2962,7 @@ const TournamentPage = ({ onToast, user, onNavigate }: { onToast: (t: string, m:
                         {t.status === 'open' ? (
                           <button
                             onClick={() => {
-                              if (!user) {
-                                onToast('Login Required', 'Please sign in to register.');
-                                onNavigate('signin', t);
-                              } else {
-                                onNavigate('registration', t);
-                              }
+                              onNavigate('tournament-details', t);
                             }}
                             className="w-full bg-gold hover:bg-gold-light text-black py-2 text-xs font-bold uppercase tracking-widest font-orbitron transition-all"
                           >

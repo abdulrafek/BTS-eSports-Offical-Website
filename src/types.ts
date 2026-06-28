@@ -91,7 +91,7 @@ export interface TournamentResult {
   date: string;
 }
 
-export type Page = 'home' | 'tournament' | 'registration' | 'ranking' | 'roster' | 'recruitment' | 'management' | 'about' | 'signin' | 'admin' | 'results' | 'screenshot-stats';
+export type Page = 'home' | 'tournament' | 'registration' | 'ranking' | 'roster' | 'recruitment' | 'management' | 'about' | 'signin' | 'admin' | 'results' | 'screenshot-stats' | 'tournament-details';
 
 export interface TournamentRegistration {
   id?: string;

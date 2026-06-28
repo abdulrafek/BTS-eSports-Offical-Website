@@ -59,6 +59,7 @@ import { Page, Tournament, Player, RankingPlayer } from './types';
 import { PLAYERS, DIVISIONS, TOURNAMENTS, GAME_DATA } from './constants';
 import { auth, googleProvider, db, handleFirestoreError as firebaseErrorHandler } from './lib/firebase';
 import { ScreenshotStatsPage } from './ScreenshotStatsPage';
+import { BtsLogo } from './components/BtsLogo';
 import { signInWithPopup, signOut, onAuthStateChanged, User, signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
 import { 
   collection, 
@@ -468,60 +469,78 @@ const Home = ({ onNavigate, onToast, userRole, isAdmin, user, branding }: { onNa
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -40 }}
               transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
-              className="max-w-4xl"
+              className="max-w-7xl"
             >
-              <div className="flex items-center gap-4 mb-6">
-                <div className="h-[2px] w-12 bg-gold" />
-                <span className="text-gold text-xs font-black uppercase tracking-[0.5em]">{heroSlides[currentSlide].tag}</span>
-              </div>
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
+                
+                {/* Left Column - Text Details */}
+                <div className="lg:col-span-7 space-y-6">
+                  <div className="flex items-center gap-4 mb-2">
+                    <div className="h-[2px] w-12 bg-gold" />
+                    <span className="text-gold text-xs font-black uppercase tracking-[0.5em]">{heroSlides[currentSlide].tag}</span>
+                  </div>
 
-              <div className="space-y-3 mb-10">
-                {heroSlides[currentSlide].title.map((word, i) => (
-                  <motion.h1 
-                    key={i}
-                    initial={{ x: -100, opacity: 0 }}
-                    animate={{ x: 0, opacity: 1 }}
-                    transition={{ delay: 0.2 + (i * 0.1), duration: 0.8 }}
-                    className="font-bebas text-5xl sm:text-6xl md:text-7xl lg:text-8xl xl:text-[6.5rem] leading-[0.85] tracking-tight uppercase text-white animate-fade-in"
-                  >
-                    {word}
-                  </motion.h1>
-                ))}
-              </div>
+                  <div className="space-y-3 mb-6">
+                    {heroSlides[currentSlide].title.map((word, i) => (
+                      <motion.h1 
+                        key={i}
+                        initial={{ x: -100, opacity: 0 }}
+                        animate={{ x: 0, opacity: 1 }}
+                        transition={{ delay: 0.2 + (i * 0.1), duration: 0.8 }}
+                        className="font-bebas text-5xl sm:text-6xl md:text-7xl lg:text-8xl xl:text-[6.5rem] leading-[0.85] tracking-tight uppercase text-white animate-fade-in"
+                      >
+                        {word}
+                      </motion.h1>
+                    ))}
+                  </div>
 
-              <div className="grid md:grid-cols-2 gap-12 items-end">
-                <div className="space-y-8">
-                   <p className="text-neutral-300 text-lg md:text-xl leading-relaxed max-w-md border-l-2 border-gold/20 pl-6 italic">
-                     {heroSlides[currentSlide].desc}
-                   </p>
-                   <div className="flex gap-4">
+                  <div className="space-y-8">
+                    <p className="text-neutral-300 text-lg md:text-xl leading-relaxed max-w-lg border-l-2 border-gold/20 pl-6 italic font-sans">
+                      {heroSlides[currentSlide].desc}
+                    </p>
+                    <div className="flex gap-4">
                       <button 
                         onClick={() => onNavigate(heroSlides[currentSlide].nav1 as Page)}
-                        className="btn-clip bg-gold text-black px-10 py-4 font-black uppercase tracking-widest text-xs hover:bg-white transition-all flex items-center gap-2"
+                        className="btn-clip bg-gold text-black px-10 py-4 font-black uppercase tracking-widest text-xs hover:bg-white transition-all flex items-center gap-2 cursor-pointer"
                       >
-                         {heroSlides[currentSlide].btn1} <ChevronRight size={16} />
+                        {heroSlides[currentSlide].btn1} <ChevronRight size={16} />
                       </button>
                       <button 
                         onClick={() => onNavigate(heroSlides[currentSlide].nav2 as Page)}
-                        className="btn-clip border border-white/20 text-white px-10 py-4 font-black uppercase tracking-widest text-xs hover:border-gold hover:text-gold transition-all"
+                        className="btn-clip border border-white/20 text-white px-10 py-4 font-black uppercase tracking-widest text-xs hover:border-gold hover:text-gold transition-all cursor-pointer"
                       >
-                         {heroSlides[currentSlide].btn2}
+                        {heroSlides[currentSlide].btn2}
                       </button>
-                   </div>
+                    </div>
+                  </div>
                 </div>
 
-                <div className="hidden md:flex gap-4 pb-4">
-                  {heroSlides.map((_, i) => (
-                    <button 
-                      key={i}
-                      onClick={() => setCurrentSlide(i)}
-                      className="group flex flex-col items-start gap-2"
-                    >
-                      <span className={`text-[10px] font-black transition-colors ${currentSlide === i ? 'text-gold' : 'text-neutral-600'}`}>0{i + 1}</span>
-                      <div className={`h-[2px] transition-all duration-500 ${currentSlide === i ? 'w-16 bg-gold' : 'w-8 bg-neutral-800 group-hover:w-12 group-hover:bg-neutral-600'}`} />
-                    </button>
-                  ))}
+                {/* Right Column - Large Animated Logo */}
+                <div className="lg:col-span-5 flex flex-col items-center justify-center relative">
+                  <motion.div 
+                    initial={{ scale: 0.8, opacity: 0, rotate: -5 }}
+                    animate={{ scale: 1, opacity: 1, rotate: 0 }}
+                    transition={{ duration: 1.2, ease: "easeOut" }}
+                    className="w-56 h-56 sm:w-64 sm:h-64 lg:w-[320px] lg:h-[320px] drop-shadow-[0_0_50px_rgba(212,175,55,0.25)] filter saturate-[1.1] hover:scale-105 hover:saturate-[1.35] transition-all duration-500 cursor-pointer"
+                  >
+                    <BtsLogo size="100%" showText={true} />
+                  </motion.div>
                 </div>
+
+              </div>
+
+              {/* Slider Dots / Tabs */}
+              <div className="flex justify-start gap-4 mt-12 border-t border-white/5 pt-6">
+                {heroSlides.map((_, i) => (
+                  <button 
+                    key={i}
+                    onClick={() => setCurrentSlide(i)}
+                    className="group flex flex-col items-start gap-2 cursor-pointer"
+                  >
+                    <span className={`text-[10px] font-black transition-colors ${currentSlide === i ? 'text-gold' : 'text-neutral-600'}`}>0{i + 1}</span>
+                    <div className={`h-[2px] transition-all duration-500 ${currentSlide === i ? 'w-16 bg-gold' : 'w-8 bg-neutral-800 group-hover:w-12 group-hover:bg-neutral-600'}`} />
+                  </button>
+                ))}
               </div>
             </motion.div>
           </AnimatePresence>
@@ -9026,9 +9045,12 @@ export default function App() {
       <nav className="fixed top-0 left-0 w-full h-16 z-[1000] bg-neutral-950/80 backdrop-blur-md border-b border-gold/10 px-4 md:px-8 flex items-center justify-between">
         <button 
           onClick={() => setCurrentPage('home')}
-          className="font-orbitron font-black text-xl tracking-[0.2em] text-gold decoration-none"
+          className="flex items-center gap-3 font-orbitron font-black text-lg md:text-xl tracking-[0.2em] text-gold decoration-none group"
         >
-          {branding.orgName.split(' ')[0]}<span className="text-neon-red">⚡</span>{branding.orgName.split(' ')[1] || 'ESPORTS'}
+          <BtsLogo size={42} showText={false} className="transition-transform duration-300 group-hover:scale-105" />
+          <span>
+            {branding.orgName.split(' ')[0]}<span className="text-neon-red">⚡</span>{branding.orgName.split(' ')[1] || 'ESPORTS'}
+          </span>
         </button>
 
         {/* Desktop Nav */}
@@ -9154,8 +9176,11 @@ export default function App() {
         <div className="container mx-auto">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-12 mb-16">
             <div className="space-y-6">
-              <div className="font-orbitron font-black text-2xl tracking-[0.2em] text-gold">
-                {branding.orgName.split(' ')[0]}<span className="text-neon-red">⚡</span>{branding.orgName.split(' ')[1] || 'ESPORTS'}
+              <div className="flex flex-col items-start gap-4">
+                <BtsLogo size={110} showText={true} className="filter saturate-[1.15]" />
+                <div className="font-orbitron font-black text-xl tracking-[0.2em] text-gold mt-2">
+                  {branding.orgName.split(' ')[0]}<span className="text-neon-red">⚡</span>{branding.orgName.split(' ')[1] || 'ESPORTS'}
+                </div>
               </div>
               <p className="text-neutral-500 text-sm leading-relaxed">
                 India's premier competitive gaming organization. Building the next generation of professional eSports talent through infrastructure, coaching, and discipline.

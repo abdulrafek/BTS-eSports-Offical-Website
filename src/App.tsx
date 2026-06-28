@@ -179,7 +179,7 @@ const SectionHeader = ({ tag, title, sub, goldSpan, className = "text-center mb-
 
 // --- Pages ---
 
-const Home = ({ onNavigate, onToast, userRole, isAdmin, user, branding }: { onNavigate: (p: Page) => void, onToast: (t: string, m: string) => void, userRole?: string, isAdmin?: boolean, user?: User | null, branding: any }) => {
+const Home = ({ onNavigate, onToast, userRole, isAdmin, user, branding }: { onNavigate: (p: Page, d?: any) => void, onToast: (t: string, m: string) => void, userRole?: string, isAdmin?: boolean, user?: User | null, branding: any }) => {
   const [dbTournaments, setDbTournaments] = useState<any[]>([]);
   const [dbHighlights, setDbHighlights] = useState<any[]>([]);
   const [liveConfig, setLiveConfig] = useState<{ isLive: boolean, videoId: string, title: string } | null>(null);
@@ -3452,7 +3452,9 @@ const AdminDashboard = ({ onToast, adminRole, user, orgStatsProp }: { onToast: (
     imageUrl: '',
     discordLink: '',
     instagramLink: '',
-    youtubeLink: ''
+    youtubeLink: '',
+    description: '',
+    rules: ''
   });
   const [highlightForm, setHighlightForm] = useState({
     title: '',
@@ -3560,7 +3562,9 @@ const AdminDashboard = ({ onToast, adminRole, user, orgStatsProp }: { onToast: (
       imageUrl: t.imageUrl || '',
       discordLink: t.discordLink || '',
       instagramLink: t.instagramLink || '',
-      youtubeLink: t.youtubeLink || ''
+      youtubeLink: t.youtubeLink || '',
+      description: t.description || '',
+      rules: t.rules || ''
     });
     setShowCreateForm(true);
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -3688,7 +3692,9 @@ const AdminDashboard = ({ onToast, adminRole, user, orgStatsProp }: { onToast: (
       imageUrl: '',
       discordLink: '',
       instagramLink: '',
-      youtubeLink: ''
+      youtubeLink: '',
+      description: '',
+      rules: ''
     });
     setResultForm({
       tournamentId: '',
@@ -6813,6 +6819,26 @@ function doPost(e) {
                           className="w-full bg-black/40 border border-white/10 p-3 text-xs text-red-400 focus:border-red-500 outline-none font-mono" 
                         />
                       </div>
+                      <div className="space-y-1 md:col-span-2 lg:col-span-3">
+                        <label className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest italic opacity-60">Operational Briefing (Description)</label>
+                        <textarea 
+                          rows={4}
+                          value={tournamentForm.description}
+                          onChange={(e) => setTournamentForm({...tournamentForm, description: e.target.value})}
+                          placeholder="Welcome to the ultimate battleground experience..."
+                          className="w-full bg-black/40 border border-white/10 p-3 text-xs text-neutral-300 focus:border-gold outline-none font-sans leading-relaxed" 
+                        />
+                      </div>
+                      <div className="space-y-1 md:col-span-2 lg:col-span-3">
+                        <label className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest italic opacity-60">Competitive Protocols (Rules - One Rule Per Line)</label>
+                        <textarea 
+                          rows={6}
+                          value={tournamentForm.rules}
+                          onChange={(e) => setTournamentForm({...tournamentForm, rules: e.target.value})}
+                          placeholder="Rule 1: Squad must consist of at least 4 registered players...&#10;Rule 2: Hacks are strictly prohibited..."
+                          className="w-full bg-black/40 border border-white/10 p-3 text-xs text-neutral-300 focus:border-gold outline-none font-mono leading-relaxed" 
+                        />
+                      </div>
                     </div>
                     <div className="pt-4 flex gap-4">
                       <button type="submit" className="flex-1 bg-gold text-black py-4 text-xs font-black uppercase tracking-widest hover:bg-gold-light transition-all rounded-[2px] shadow-lg">
@@ -8132,7 +8158,7 @@ const RegistrationPage = ({ tournament, user, onNavigate, onToast }: { tournamen
       const regsSnap = await getDocs(collection(db, 'tournaments', tournament.id, 'registrations'));
       const actualRegistrationsCount = regsSnap.size;
 
-      if (actualRegistrationsCount >= tournament.total) {
+      if (actualRegistrationsCount >= Number(tournament.total || 72)) {
         onToast('Tournament Full', 'No more slots available for this tournament.');
         setLoading(false);
         return;
@@ -8363,6 +8389,38 @@ const RegistrationPage = ({ tournament, user, onNavigate, onToast }: { tournamen
           </div>
         </div>
 
+        {/* Tournament specific rules preview */}
+        <div className="bg-black/30 border border-white/5 p-5 rounded-sm space-y-3">
+          <h4 className="text-[10px] font-black text-gold uppercase tracking-[0.2em] flex items-center gap-2 font-orbitron">
+            <Trophy size={12} /> Tournament Rules Protocol
+          </h4>
+          <div className="max-h-40 overflow-y-auto pr-2 space-y-2 font-sans text-xs text-neutral-400 leading-relaxed scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
+            {tournament.rules ? (
+              tournament.rules.split('\n').filter(r => r.trim() !== '').map((rule, idx) => (
+                <div key={idx} className="flex gap-2 items-start">
+                  <span className="text-gold font-mono font-bold shrink-0">{idx + 1}.</span>
+                  <span>{rule}</span>
+                </div>
+              ))
+            ) : (
+              <>
+                <div className="flex gap-2 items-start">
+                  <span className="text-gold font-mono font-bold shrink-0">1.</span>
+                  <span>A squad must consist of at least 4 registered players with valid in-game character IDs.</span>
+                </div>
+                <div className="flex gap-2 items-start">
+                  <span className="text-gold font-mono font-bold shrink-0">2.</span>
+                  <span>Using any hacks, emulator bypasses, or third-party visual enhancers is strictly prohibited.</span>
+                </div>
+                <div className="flex gap-2 items-start">
+                  <span className="text-gold font-mono font-bold shrink-0">3.</span>
+                  <span>Teams must check-in on the official Discord server at least 30 minutes prior to scheduled match time.</span>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+
         <div className="pt-8 space-y-6">
           <label className="flex items-start gap-4 cursor-pointer group">
             <input 
@@ -8397,6 +8455,362 @@ const RegistrationPage = ({ tournament, user, onNavigate, onToast }: { tournamen
           </button>
         </div>
       </motion.form>
+    </div>
+  );
+};
+
+const TournamentDetailsPage = ({ tournament, user, onNavigate, onToast }: { tournament: Tournament, user: User | null, onNavigate: (p: Page, d?: any) => void, onToast: (t: string, m: string) => void }) => {
+  const [registrations, setRegistrations] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [hasRegistered, setHasRegistered] = useState(false);
+
+  useEffect(() => {
+    let unsubscribe = () => {};
+    const fetchRegistrations = () => {
+      setLoading(true);
+      try {
+        const q = query(collection(db, 'tournaments', tournament.id, 'registrations'), orderBy('createdAt', 'desc'));
+        unsubscribe = onSnapshot(q, (snap) => {
+          const loadedRegs = snap.docs.map(doc => ({ id: doc.id, ...doc.data() as any }));
+          setRegistrations(loadedRegs);
+          
+          if (user) {
+            const userReg = loadedRegs.find((r: any) => r.uid === user.uid);
+            setHasRegistered(!!userReg);
+          }
+          setLoading(false);
+        }, (error) => {
+          console.error("Error loading registrations:", error);
+          setLoading(false);
+        });
+      } catch (err) {
+        console.error("Failed to query registrations:", err);
+        setLoading(false);
+      }
+    };
+
+    fetchRegistrations();
+    return () => unsubscribe();
+  }, [tournament.id, user]);
+
+  const handleRegisterClick = () => {
+    if (!user) {
+      onToast('Login Required', 'Please sign in to register.');
+      onNavigate('signin', tournament);
+      return;
+    }
+    onNavigate('registration', tournament);
+  };
+
+  // Content fallbacks for standard tournaments
+  const getAboutCopy = () => {
+    if (tournament.description) return tournament.description;
+    if (tournament.game === 'BGMI' || tournament.game === 'PUBG') {
+      return `Welcome to the ultimate battleground experience. The ${tournament.name} brings together elite mobile squads to compete in an intense tactical survival format. Spanning multiple match days, squads will drop, loot, and fight across Erangel, Miramar, and Sanhok. Only the most disciplined teams with pristine coordination will survive the blue zone and claim the grand prize pool. All matches will be hosted on official servers.`;
+    }
+    if (tournament.game === 'VALORANT') {
+      return `Prepare for precise gunplay and tactical ability usage. The ${tournament.name} is a high-stakes, double-elimination tournament designed for premium tactical shooters. Teams will fight in a Best-of-3 format across competitive map pools. Ensure your team roster is fully synchronized.`;
+    }
+    return `Welcome to ${tournament.name}. This is a premier competitive tournament organized by BTS eSports, designed to crown the ultimate champions. Competitors will face off against elite squads in structured match series to test mechanics, team coordination, and strategic depth.`;
+  };
+
+  const getRules = () => {
+    if (tournament.rules) return tournament.rules.split('\n').filter(r => r.trim() !== '');
+    if (tournament.game === 'BGMI' || tournament.game === 'PUBG') {
+      return [
+        "A squad must consist of at least 4 registered players (up to 2 optional substitutes allowed).",
+        "Using any third-party tools, hacks, emulator bypasses, or illegal performance-enhancing modifications is strictly prohibited and results in a lifetime ban.",
+        "Matches will be played in Battle Royale Squad mode (TPP). Point distribution follows official esports scoring systems.",
+        "All teams must check in on our official Discord server at least 30 minutes prior to the scheduled lobby start time.",
+        "In-game IDs and IGNs must match the registration records exactly. Unregistered players are not allowed to join lobbies.",
+        "Lobby credentials (ID & Password) will be shared via official Discord / WhatsApp channels. Stream sniping is heavily penalized."
+      ];
+    }
+    return [
+      "All squad participants must be registered with active game IDs and correct user credentials.",
+      "Good sportsmanship is mandatory. Toxic behavior, stream sniping, or collusion will lead to immediate disqualification.",
+      "Tournament administrators hold the final decision in all disputes or schedule updates.",
+      "Teams failing to join the server within 10 minutes of the scheduled match time will face an automatic forfeit."
+    ];
+  };
+
+  const statusColors = {
+    open: 'bg-green-500/10 text-green-400 border border-green-500/20 shadow-[0_0_10px_rgba(34,197,94,0.1)]',
+    upcoming: 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 shadow-[0_0_10px_rgba(6,182,212,0.1)]',
+    closed: 'bg-red-500/10 text-red-400 border border-red-500/20'
+  };
+
+  const slotsAvailable = (tournament.total || 72) - registrations.length;
+
+  return (
+    <div className="pt-24 container mx-auto px-4 max-w-7xl pb-24 min-h-screen">
+      {/* Navigation and Back */}
+      <div className="mb-8">
+        <button 
+          onClick={() => onNavigate('tournament')}
+          className="text-neutral-500 hover:text-gold flex items-center gap-2 text-xs font-bold uppercase tracking-widest transition-colors font-orbitron"
+        >
+          <ChevronLeft size={14} /> Back to Tournaments
+        </button>
+      </div>
+
+      {/* Tournament Main Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        
+        {/* Left Columns - Details, Rules, Registered Teams */}
+        <div className="lg:col-span-2 space-y-8">
+          
+          {/* Hero Banner / Header */}
+          <div className="relative bg-neutral-900 border border-white/5 p-8 md:p-12 overflow-hidden rounded-sm">
+            <div className="absolute top-0 right-0 w-64 h-64 bg-gold/5 -rotate-45 translate-x-28 -translate-y-28 pointer-events-none" />
+            <div className="absolute bottom-0 left-0 w-full h-1 bg-gold/30" />
+            
+            <div className="flex flex-wrap items-center gap-3 mb-4">
+              <span className={`text-[9px] font-bold px-2.5 py-1 uppercase tracking-widest rounded-sm ${statusColors[tournament.status]}`}>
+                {tournament.status === 'open' ? 'REGISTRATIONS OPEN' : tournament.status === 'upcoming' ? 'COMING SOON' : 'REGISTRATION CLOSED'}
+              </span>
+              <span className="bg-white/5 text-neutral-400 text-[9px] font-bold px-2.5 py-1 uppercase tracking-widest border border-white/5 rounded-sm">
+                {tournament.game}
+              </span>
+            </div>
+
+            <h1 className="font-bebas text-4xl md:text-6xl text-white tracking-wider mb-2 leading-tight uppercase">
+              {tournament.name}
+            </h1>
+            <p className="text-neutral-500 text-xs uppercase font-orbitron font-bold tracking-widest">
+              Esports Deployment Protocol
+            </p>
+          </div>
+
+          {/* Quick Metrics Cards */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="bg-neutral-900/40 border border-white/5 p-4 flex flex-col justify-between min-h-[100px] rounded-sm">
+              <span className="text-[9px] font-bold text-neutral-500 uppercase tracking-wider font-orbitron">Prize Pool</span>
+              <div className="flex items-center gap-1 mt-2">
+                <Trophy size={16} className="text-gold" />
+                <span className="font-bebas text-2xl text-white tracking-wide">{tournament.prize}</span>
+              </div>
+            </div>
+
+            <div className="bg-neutral-900/40 border border-white/5 p-4 flex flex-col justify-between min-h-[100px] rounded-sm">
+              <span className="text-[9px] font-bold text-neutral-500 uppercase tracking-wider font-orbitron">Registrations</span>
+              <div className="flex items-center gap-1 mt-2">
+                <Users size={16} className="text-gold" />
+                <span className="font-bebas text-2xl text-white tracking-wide">
+                  {registrations.length} / {tournament.total || 72}
+                </span>
+              </div>
+            </div>
+
+            <div className="bg-neutral-900/40 border border-white/5 p-4 flex flex-col justify-between min-h-[100px] rounded-sm">
+              <span className="text-[9px] font-bold text-neutral-500 uppercase tracking-wider font-orbitron">Game Title</span>
+              <div className="flex items-center gap-1 mt-2">
+                <Gamepad2 size={16} className="text-gold" />
+                <span className="font-bebas text-2xl text-white tracking-wide uppercase">{tournament.game}</span>
+              </div>
+            </div>
+
+            <div className="bg-neutral-900/40 border border-white/5 p-4 flex flex-col justify-between min-h-[100px] rounded-sm">
+              <span className="text-[9px] font-bold text-neutral-500 uppercase tracking-wider font-orbitron">Event Date</span>
+              <div className="flex items-center gap-1 mt-2">
+                <Calendar size={16} className="text-gold" />
+                <span className="font-bebas text-xl text-white tracking-wide uppercase truncate block w-full">{tournament.date}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Operational Briefing (About) */}
+          <div className="bg-neutral-900/30 border border-white/5 p-6 md:p-8 rounded-sm">
+            <h2 className="font-bebas text-2xl text-white tracking-wider mb-4 border-b border-white/5 pb-2 uppercase">
+              Operational Briefing
+            </h2>
+            <p className="text-neutral-400 text-sm leading-relaxed font-sans">
+              {getAboutCopy()}
+            </p>
+          </div>
+
+          {/* Competitive Protocols (Rules) */}
+          <div className="bg-neutral-900/30 border border-white/5 p-6 md:p-8 rounded-sm">
+            <h2 className="font-bebas text-2xl text-white tracking-wider mb-4 border-b border-white/5 pb-2 uppercase">
+              Competitive Protocols & Rules
+            </h2>
+            <ul className="space-y-4">
+              {getRules().map((rule, idx) => (
+                <li key={idx} className="flex gap-4 items-start text-sm text-neutral-400 font-sans">
+                  <span className="w-6 h-6 bg-gold/10 border border-gold/30 rounded-full flex items-center justify-center font-orbitron text-[10px] text-gold font-bold shrink-0 mt-0.5">
+                    {idx + 1}
+                  </span>
+                  <span className="leading-relaxed">{rule}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          {/* Enlisted Squads (Registered Teams List) */}
+          <div className="bg-neutral-900/30 border border-white/5 p-6 md:p-8 rounded-sm">
+            <div className="flex justify-between items-center mb-6 border-b border-white/5 pb-2">
+              <h2 className="font-bebas text-2xl text-white tracking-wider uppercase">
+                Enlisted Squads
+              </h2>
+              <span className="text-[10px] font-orbitron font-black text-gold uppercase tracking-wider">
+                {registrations.length} Teams Registered
+              </span>
+            </div>
+
+            {loading ? (
+              <div className="text-center py-12 text-gold animate-pulse text-xs uppercase tracking-widest font-bold">
+                Scanning Active Registrations...
+              </div>
+            ) : registrations.length === 0 ? (
+              <div className="text-center py-16 bg-neutral-900/20 border border-dashed border-white/5 rounded-sm p-6">
+                <p className="text-neutral-600 uppercase font-orbitron text-xs font-bold tracking-widest mb-2">No active operatives enlisted yet</p>
+                <p className="text-neutral-500 text-xs">Be the first to secure your slot on the roster.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {registrations.map((reg, idx) => (
+                  <div key={reg.id || idx} className="bg-black/30 border border-white/5 p-4 rounded-sm flex justify-between items-center group hover:border-gold/20 transition-all">
+                    <div>
+                      <h4 className="font-bebas text-lg text-white tracking-wide group-hover:text-gold transition-colors">{reg.teamName}</h4>
+                      <p className="text-[10px] text-neutral-500 font-mono mt-0.5">
+                        Leader: {reg.playerName} (<span className="text-gold/80">{reg.ign}</span>)
+                      </p>
+                      <p className="text-[8px] text-neutral-600 font-mono uppercase font-bold tracking-tighter mt-1">
+                        Registered: {reg.createdAt?.toDate ? reg.createdAt.toDate().toLocaleDateString() : 'Recent'}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-[9px] font-black font-orbitron bg-white/5 border border-white/10 text-neutral-400 px-2 py-1 rounded-[2px]">
+                        {((reg.squad?.length || 0) + 1)} Operatives
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+        </div>
+
+        {/* Right Column - Status Panel / Actions */}
+        <div className="space-y-6">
+          <div className="bg-neutral-900 border border-gold/15 p-6 rounded-sm relative overflow-hidden backdrop-blur-md sticky top-24">
+            <div className="absolute top-0 left-0 w-full h-1 bg-gold" />
+            <h3 className="font-bebas text-2xl text-white tracking-widest mb-4 uppercase">
+              Operational Access
+            </h3>
+
+            <div className="space-y-6">
+              
+              {/* Status block */}
+              <div>
+                <span className="text-[9px] font-bold text-neutral-500 uppercase tracking-widest font-orbitron block mb-1">
+                  TACTICAL STATUS
+                </span>
+                {tournament.status === 'open' ? (
+                  slotsAvailable > 0 ? (
+                    <div className="flex items-center gap-2 text-green-400 font-mono font-bold text-xs uppercase">
+                      <span className="w-2 h-2 rounded-full bg-green-500 animate-ping" />
+                      Slot Allocation Active
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2 text-red-500 font-mono font-bold text-xs uppercase">
+                      <Ban size={14} />
+                      Slot Overflow / Queue Full
+                    </div>
+                  )
+                ) : tournament.status === 'upcoming' ? (
+                  <div className="flex items-center gap-2 text-cyan-400 font-mono font-bold text-xs uppercase">
+                    <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
+                    Pending Schedule Commencement
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2 text-neutral-500 font-mono font-bold text-xs uppercase">
+                    <Lock size={12} />
+                    Registration Decommissioned
+                  </div>
+                )}
+              </div>
+
+              {/* Slots remaining block */}
+              <div>
+                <span className="text-[9px] font-bold text-neutral-500 uppercase tracking-widest font-orbitron block mb-1">
+                  SLOT ALLOCATION
+                </span>
+                <div className="font-mono text-sm text-neutral-300">
+                  Total Slots: <span className="text-white font-bold">{tournament.total || 72}</span>
+                </div>
+                <div className="font-mono text-sm text-neutral-300 mt-0.5">
+                  Slots Allocated: <span className="text-gold font-bold">{registrations.length}</span>
+                </div>
+                <div className="font-mono text-sm text-neutral-300 mt-0.5">
+                  Remaining Slots: <span className={`${slotsAvailable > 0 ? 'text-green-400 font-bold' : 'text-red-500 font-bold'}`}>{Math.max(0, slotsAvailable)}</span>
+                </div>
+                
+                {/* Visual Progress Bar */}
+                <div className="w-full bg-black/40 h-1.5 rounded-full mt-3 overflow-hidden border border-white/5">
+                  <div 
+                    className="bg-gold h-full transition-all duration-500" 
+                    style={{ width: `${Math.min(100, (registrations.length / (tournament.total || 72)) * 100)}%` }}
+                  />
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="pt-4 border-t border-white/5 space-y-3">
+                {hasRegistered ? (
+                  <div className="bg-green-500/10 border border-green-500/30 p-4 rounded-sm text-center">
+                    <div className="flex items-center justify-center gap-2 text-green-400 font-orbitron font-black text-xs uppercase tracking-widest mb-1">
+                      <Check size={14} /> Enlisted
+                    </div>
+                    <p className="text-[10px] text-neutral-400 font-mono uppercase tracking-tighter">
+                      Your deployment signature has been verified in the operational tactical grid.
+                    </p>
+                  </div>
+                ) : tournament.status === 'open' ? (
+                  slotsAvailable > 0 ? (
+                    <button
+                      onClick={handleRegisterClick}
+                      className="w-full btn-clip bg-gold hover:bg-gold-light text-black py-4 font-black uppercase tracking-[0.2em] shadow-[0_0_15px_rgba(212,175,55,0.2)] transition-all flex items-center justify-center gap-2"
+                    >
+                      Enlist Now <ArrowRight size={14} />
+                    </button>
+                  ) : (
+                    <button
+                      disabled
+                      className="w-full btn-clip bg-white/5 border border-white/10 text-white/20 py-4 font-black uppercase tracking-[0.2em] cursor-not-allowed flex items-center justify-center gap-2"
+                    >
+                      <Ban size={14} /> Slots Exhausted
+                    </button>
+                  )
+                ) : tournament.status === 'upcoming' ? (
+                  <button
+                    disabled
+                    className="w-full btn-clip bg-white/5 border border-white/10 text-neutral-500 py-4 font-black uppercase tracking-[0.2em] cursor-not-allowed flex items-center justify-center gap-2"
+                  >
+                    <Calendar size={14} /> Lobbies Opening Soon
+                  </button>
+                ) : (
+                  <button
+                    disabled
+                    className="w-full btn-clip bg-white/5 border border-white/10 text-neutral-500 py-4 font-black uppercase tracking-[0.2em] cursor-not-allowed flex items-center justify-center gap-2"
+                  >
+                    <Lock size={14} /> Submissions Inactive
+                  </button>
+                )}
+
+                {!user && (
+                  <p className="text-[9px] text-center text-neutral-500 uppercase font-mono tracking-tighter">
+                    Account authorization is required to join combat logs.
+                  </p>
+                )}
+              </div>
+
+            </div>
+          </div>
+        </div>
+
+      </div>
     </div>
   );
 };
@@ -8711,6 +9125,9 @@ export default function App() {
             )}
             {currentPage === 'registration' && selectedTournament && user && (
               <RegistrationPage tournament={selectedTournament} user={user} onNavigate={navigate} onToast={showToast} />
+            )}
+            {currentPage === 'tournament-details' && selectedTournament && (
+              <TournamentDetailsPage tournament={selectedTournament} user={user} onNavigate={navigate} onToast={showToast} />
             )}
             {currentPage === 'results' && <ResultsPage onToast={showToast} isAdmin={isAdmin} />}
             {currentPage === 'ranking' && <RankingPage onToast={showToast} />}

@@ -77,6 +77,8 @@ export interface Tournament {
   discordLink?: string;
   instagramLink?: string;
   youtubeLink?: string;
+  description?: string;
+  rules?: string;
 }
 
 export interface TournamentResult {

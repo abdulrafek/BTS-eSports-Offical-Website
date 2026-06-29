@@ -179,8 +179,16 @@ export function ScreenshotStatsPage({ onToast }: { onToast: (t: string, m: strin
       }
     } catch (err: any) {
       console.error(err);
-      setAuthError(err.message || 'OAuth Connection Failed.');
-      onToast('Access Required', 'Cleared scope failed or popup blocked. Verify browser permissions.');
+      if (err.code === 'auth/popup-closed-by-user' || err.code === 'auth/cancelled-popup-request') {
+        setAuthError('Connection cancelled by user.');
+        onToast('Connection Cancelled', 'The authentication window was closed.');
+      } else if (err.code === 'auth/popup-blocked') {
+        setAuthError('Popup blocked by browser settings.');
+        onToast('Popup Blocked', 'Please enable popups to connect with Google Drive.');
+      } else {
+        setAuthError(err.message || 'OAuth Connection Failed.');
+        onToast('Access Required', 'Cleared scope failed or popup blocked. Verify browser permissions.');
+      }
     }
   };
 

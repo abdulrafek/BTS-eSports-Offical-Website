@@ -26,6 +26,90 @@ function getGeminiClient() {
   return aiClient;
 }
 
+/**
+ * Executes a Gemini content generation request with retry logic (exponential backoff)
+ * and active model-rotation if the primary model is overloaded or experiencing high demand (503).
+ */
+async function generateContentWithRetry(ai: GoogleGenAI, params: any, maxRetries = 4) {
+  let attempt = 0;
+  let lastError: any = null;
+  let delay = 1000; // Starting delay: 1000ms
+
+  // Shallow copy params so we can modify the model field without side-effects
+  const localParams = { ...params };
+  if (localParams.config) {
+    localParams.config = { ...localParams.config };
+  }
+
+  // Fallback model chain: primary -> stable lite -> standard flash
+  const modelChain = [
+    localParams.model,
+    "gemini-3.1-flash-lite",
+    "gemini-flash-latest"
+  ].filter((m, idx, arr) => m && arr.indexOf(m) === idx);
+
+  let modelIdx = 0;
+
+  while (attempt < maxRetries) {
+    try {
+      localParams.model = modelChain[modelIdx];
+      console.log(`[Gemini API] Requesting ${localParams.model} (Attempt ${attempt + 1}/${maxRetries})...`);
+      const response = await ai.models.generateContent(localParams);
+      return response;
+    } catch (error: any) {
+      lastError = error;
+      attempt++;
+      console.warn(`[Gemini API] Attempt ${attempt} failed with model ${modelChain[modelIdx]}:`, error?.message || error);
+
+      // Analyze if it's a 503 / UNAVAILABLE / high demand error
+      const errorStr = typeof error === 'string' ? error : JSON.stringify(error);
+      const errMsg = error?.message || '';
+      const isOverloaded = 
+        errorStr.includes('503') ||
+        errorStr.includes('UNAVAILABLE') ||
+        errorStr.includes('high demand') ||
+        errMsg.includes('503') ||
+        errMsg.includes('UNAVAILABLE') ||
+        errMsg.includes('high demand') ||
+        error?.status === 503 ||
+        error?.status === 'UNAVAILABLE';
+
+      if (isOverloaded) {
+        if (modelIdx < modelChain.length - 1) {
+          modelIdx++;
+          console.warn(`[Gemini API] Model ${modelChain[modelIdx - 1]} is overloaded/unavailable. Advancing to fallback model ${modelChain[modelIdx]} for subsequent retries.`);
+          // Lower the retry wait time when switching models to speed up the recovery
+          delay = Math.min(delay, 500);
+        }
+      }
+
+      if (attempt < maxRetries) {
+        const jitter = Math.floor(Math.random() * 500);
+        const waitTime = delay + jitter;
+        console.log(`[Gemini API] Retrying in ${waitTime}ms...`);
+        await new Promise((resolve) => setTimeout(resolve, waitTime));
+        delay *= 2;
+      }
+    }
+  }
+
+  // Last-ditch effort: try any remaining fallback models that haven't been tried yet
+  while (modelIdx < modelChain.length - 1) {
+    modelIdx++;
+    try {
+      localParams.model = modelChain[modelIdx];
+      console.warn(`[Gemini API] All retry attempts exhausted. Making a last-ditch effort with fallback model ${localParams.model}...`);
+      const response = await ai.models.generateContent(localParams);
+      return response;
+    } catch (fallbackError: any) {
+      console.error(`[Gemini API] Last-ditch effort with ${localParams.model} failed:`, fallbackError?.message || fallbackError);
+      lastError = fallbackError;
+    }
+  }
+
+  throw lastError;
+}
+
 async function startServer() {
   const app = express();
   const PORT = 3000;
@@ -46,17 +130,21 @@ async function startServer() {
       const base64Data = image.replace(/^data:image\/\w+;base64,/, "");
 
       const ai = getGeminiClient();
-      const response = await ai.models.generateContent({
+      const response = await generateContentWithRetry(ai, {
         model: "gemini-3.5-flash",
-        contents: [
-          {
-            inlineData: {
-              data: base64Data,
-              mimeType: mimeType
+        contents: {
+          parts: [
+            {
+              inlineData: {
+                data: base64Data,
+                mimeType: mimeType
+              }
+            },
+            {
+              text: "Extract game match or profile stats from this screenshot. Find the number of kills and number of matches played. If there are other clear metrics like wins, deaths, KD ratio, or playerName, extract them too."
             }
-          },
-          "Extract game match or profile stats from this screenshot. Find the number of kills and number of matches played. If there are other clear metrics like wins, deaths, KD ratio, or playerName, extract them too."
-        ],
+          ]
+        },
         config: {
           responseMimeType: "application/json",
           responseSchema: {
@@ -287,6 +375,77 @@ async function startServer() {
     } catch (error: any) {
       console.error("Email dispatch failed on server:", error);
       res.status(500).json({ error: error.message || "Failed to dispatch email confirmation receipt." });
+    }
+  });
+
+  // API endpoint to generate tailored Gemini-powered scouting reports
+  app.post("/api/gemini-scouting", async (req: express.Request, res: express.Response) => {
+    try {
+      const { player1, player2 } = req.body;
+      if (!player1) {
+        return res.status(400).json({ error: "Missing player 1 data" });
+      }
+
+      const ai = getGeminiClient();
+      
+      let promptText = "";
+      if (player2) {
+        promptText = `
+          Perform an elite esports comparative head-to-head scouting report between two players:
+          
+          PLAYER 1:
+          - IGN (In-Game Name): ${player1.ign}
+          - Role: ${player1.role}
+          - Game: ${player1.game}
+          - Total Kills (Scrims + Tourneys + Rooms): ${player1.totalKills || 'N/A'}
+          - K/D Ratio: ${player1.kd || 'N/A'}
+          - Map Intelligence: ${JSON.stringify(player1.mapStats || {})}
+          - Achievements: ${JSON.stringify(player1.achievements || [])}
+          
+          PLAYER 2:
+          - IGN: ${player2.ign}
+          - Role: ${player2.role}
+          - Game: ${player2.game}
+          - Total Kills (Scrims + Tourneys + Rooms): ${player2.totalKills || 'N/A'}
+          - K/D Ratio: ${player2.kd || 'N/A'}
+          - Map Intelligence: ${JSON.stringify(player2.mapStats || {})}
+          - Achievements: ${JSON.stringify(player2.achievements || [])}
+
+          Analyze their playstyles based on their stats, compare their role effectiveness, evaluate their performance on different maps, list who has the edge in combat rating, and provide strategic advice for team drafting/positioning. Include a playful/epic esports commentator tone but with high tactical depth. Format as clean, premium, spacious Markdown. Use headers, bold accents, bullet points, and comparative lists.
+        `;
+      } else {
+        promptText = `
+          Perform an elite esports tactical scouting report for a single player:
+          
+          PLAYER LOGS:
+          - IGN (In-Game Name): ${player1.ign}
+          - Role: ${player1.role}
+          - Game: ${player1.game}
+          - Total Kills: ${player1.totalKills || 'N/A'}
+          - K/D Ratio: ${player1.kd || 'N/A'}
+          - Map Intelligence: ${JSON.stringify(player1.mapStats || {})}
+          - Achievements: ${JSON.stringify(player1.achievements || [])}
+          
+          Analyze this player's playstyle, identify key map advantages, list combat strengths, uncover developmental opportunities, and provide tactical recommendations for in-game positioning. Include a playful/epic esports commentator tone but with high tactical depth. Format as clean, premium, spacious Markdown. Use headers, bold accents, bullet points, and comparative lists.
+        `;
+      }
+
+      const response = await generateContentWithRetry(ai, {
+        model: "gemini-3.5-flash",
+        contents: {
+          parts: [{ text: promptText }]
+        }
+      });
+
+      const report = response.text;
+      if (!report) {
+        throw new Error("Gemini returned empty scouting report.");
+      }
+
+      res.json({ success: true, report });
+    } catch (error: any) {
+      console.error("Gemini scouting error:", error);
+      res.status(500).json({ error: error.message || "Failed to generate AI scouting report." });
     }
   });
 

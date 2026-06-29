@@ -53,13 +53,15 @@ import {
   Send,
   Cpu,
   Database,
-  RefreshCw
+  RefreshCw,
+  Sparkles
 } from 'lucide-react';
 import { Page, Tournament, Player, RankingPlayer } from './types';
 import { PLAYERS, DIVISIONS, TOURNAMENTS, GAME_DATA } from './constants';
 import { auth, googleProvider, db, handleFirestoreError as firebaseErrorHandler } from './lib/firebase';
 import { ScreenshotStatsPage } from './ScreenshotStatsPage';
-import { BtsLogo } from './components/BtsLogo';
+import { TournamentBracket } from './components/TournamentBracket';
+import { MatchCenter } from './components/MatchCenter';
 import { signInWithPopup, signOut, onAuthStateChanged, User, signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
 import { 
   collection, 
@@ -469,78 +471,60 @@ const Home = ({ onNavigate, onToast, userRole, isAdmin, user, branding }: { onNa
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -40 }}
               transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
-              className="max-w-7xl"
+              className="max-w-4xl"
             >
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
-                
-                {/* Left Column - Text Details */}
-                <div className="lg:col-span-7 space-y-6">
-                  <div className="flex items-center gap-4 mb-2">
-                    <div className="h-[2px] w-12 bg-gold" />
-                    <span className="text-gold text-xs font-black uppercase tracking-[0.5em]">{heroSlides[currentSlide].tag}</span>
-                  </div>
+              <div className="flex items-center gap-4 mb-6">
+                <div className="h-[2px] w-12 bg-gold" />
+                <span className="text-gold text-xs font-black uppercase tracking-[0.5em]">{heroSlides[currentSlide].tag}</span>
+              </div>
 
-                  <div className="space-y-3 mb-6">
-                    {heroSlides[currentSlide].title.map((word, i) => (
-                      <motion.h1 
-                        key={i}
-                        initial={{ x: -100, opacity: 0 }}
-                        animate={{ x: 0, opacity: 1 }}
-                        transition={{ delay: 0.2 + (i * 0.1), duration: 0.8 }}
-                        className="font-bebas text-5xl sm:text-6xl md:text-7xl lg:text-8xl xl:text-[6.5rem] leading-[0.85] tracking-tight uppercase text-white animate-fade-in"
-                      >
-                        {word}
-                      </motion.h1>
-                    ))}
-                  </div>
+              <div className="space-y-3 mb-10">
+                {heroSlides[currentSlide].title.map((word, i) => (
+                  <motion.h1 
+                    key={i}
+                    initial={{ x: -100, opacity: 0 }}
+                    animate={{ x: 0, opacity: 1 }}
+                    transition={{ delay: 0.2 + (i * 0.1), duration: 0.8 }}
+                    className="font-bebas text-5xl sm:text-6xl md:text-7xl lg:text-8xl xl:text-[6.5rem] leading-[0.85] tracking-tight uppercase text-white animate-fade-in"
+                  >
+                    {word}
+                  </motion.h1>
+                ))}
+              </div>
 
-                  <div className="space-y-8">
-                    <p className="text-neutral-300 text-lg md:text-xl leading-relaxed max-w-lg border-l-2 border-gold/20 pl-6 italic font-sans">
-                      {heroSlides[currentSlide].desc}
-                    </p>
-                    <div className="flex gap-4">
+              <div className="grid md:grid-cols-2 gap-12 items-end">
+                <div className="space-y-8">
+                   <p className="text-neutral-300 text-lg md:text-xl leading-relaxed max-w-md border-l-2 border-gold/20 pl-6 italic">
+                     {heroSlides[currentSlide].desc}
+                   </p>
+                   <div className="flex gap-4">
                       <button 
                         onClick={() => onNavigate(heroSlides[currentSlide].nav1 as Page)}
-                        className="btn-clip bg-gold text-black px-10 py-4 font-black uppercase tracking-widest text-xs hover:bg-white transition-all flex items-center gap-2 cursor-pointer"
+                        className="btn-clip bg-gold text-black px-10 py-4 font-black uppercase tracking-widest text-xs hover:bg-white transition-all flex items-center gap-2"
                       >
-                        {heroSlides[currentSlide].btn1} <ChevronRight size={16} />
+                         {heroSlides[currentSlide].btn1} <ChevronRight size={16} />
                       </button>
                       <button 
                         onClick={() => onNavigate(heroSlides[currentSlide].nav2 as Page)}
-                        className="btn-clip border border-white/20 text-white px-10 py-4 font-black uppercase tracking-widest text-xs hover:border-gold hover:text-gold transition-all cursor-pointer"
+                        className="btn-clip border border-white/20 text-white px-10 py-4 font-black uppercase tracking-widest text-xs hover:border-gold hover:text-gold transition-all"
                       >
-                        {heroSlides[currentSlide].btn2}
+                         {heroSlides[currentSlide].btn2}
                       </button>
-                    </div>
-                  </div>
+                   </div>
                 </div>
 
-                {/* Right Column - Large Animated Logo */}
-                <div className="lg:col-span-5 flex flex-col items-center justify-center relative">
-                  <motion.div 
-                    initial={{ scale: 0.8, opacity: 0, rotate: -5 }}
-                    animate={{ scale: 1, opacity: 1, rotate: 0 }}
-                    transition={{ duration: 1.2, ease: "easeOut" }}
-                    className="w-56 h-56 sm:w-64 sm:h-64 lg:w-[320px] lg:h-[320px] drop-shadow-[0_0_50px_rgba(212,175,55,0.25)] filter saturate-[1.1] hover:scale-105 hover:saturate-[1.35] transition-all duration-500 cursor-pointer"
-                  >
-                    <BtsLogo size="100%" showText={true} />
-                  </motion.div>
+                <div className="hidden md:flex gap-4 pb-4">
+                  {heroSlides.map((_, i) => (
+                    <button 
+                      key={i}
+                      onClick={() => setCurrentSlide(i)}
+                      className="group flex flex-col items-start gap-2"
+                    >
+                      <span className={`text-[10px] font-black transition-colors ${currentSlide === i ? 'text-gold' : 'text-neutral-600'}`}>0{i + 1}</span>
+                      <div className={`h-[2px] transition-all duration-500 ${currentSlide === i ? 'w-16 bg-gold' : 'w-8 bg-neutral-800 group-hover:w-12 group-hover:bg-neutral-600'}`} />
+                    </button>
+                  ))}
                 </div>
-
-              </div>
-
-              {/* Slider Dots / Tabs */}
-              <div className="flex justify-start gap-4 mt-12 border-t border-white/5 pt-6">
-                {heroSlides.map((_, i) => (
-                  <button 
-                    key={i}
-                    onClick={() => setCurrentSlide(i)}
-                    className="group flex flex-col items-start gap-2 cursor-pointer"
-                  >
-                    <span className={`text-[10px] font-black transition-colors ${currentSlide === i ? 'text-gold' : 'text-neutral-600'}`}>0{i + 1}</span>
-                    <div className={`h-[2px] transition-all duration-500 ${currentSlide === i ? 'w-16 bg-gold' : 'w-8 bg-neutral-800 group-hover:w-12 group-hover:bg-neutral-600'}`} />
-                  </button>
-                ))}
               </div>
             </motion.div>
           </AnimatePresence>
@@ -558,7 +542,8 @@ const Home = ({ onNavigate, onToast, userRole, isAdmin, user, branding }: { onNa
             sub="We maintain elite rosters across the most competitive titles in the Indian eSports landscape."
           />
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+          {/* Desktop/Tablet View: Responsive Grid */}
+          <div className="hidden md:grid md:grid-cols-3 lg:grid-cols-5 gap-4">
             {Object.entries(GAME_DATA).map(([game, data], i) => (
               <motion.div
                 key={game}
@@ -581,6 +566,43 @@ const Home = ({ onNavigate, onToast, userRole, isAdmin, user, branding }: { onNa
                 </div>
               </motion.div>
             ))}
+          </div>
+
+          {/* Mobile View: Smooth Auto-Scrolling Carousel Marquee */}
+          <div className="md:hidden relative w-full overflow-hidden py-4">
+            <div className="absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-neutral-950 to-transparent z-10 pointer-events-none" />
+            <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-neutral-950 to-transparent z-10 pointer-events-none" />
+            
+            <motion.div
+              className="flex gap-4 w-max"
+              animate={{
+                x: [0, -(220 * Object.keys(GAME_DATA).length + 16 * Object.keys(GAME_DATA).length)]
+              }}
+              transition={{
+                ease: "linear",
+                duration: 18,
+                repeat: Infinity,
+              }}
+            >
+              {[...Object.entries(GAME_DATA), ...Object.entries(GAME_DATA)].map(([game, data], i) => (
+                <div
+                  key={`${game}-${i}`}
+                  onClick={() => onNavigate('tournament')}
+                  className="w-[220px] shrink-0 bg-neutral-900 border border-white/5 p-6 rounded-sm text-center relative overflow-hidden cursor-pointer"
+                >
+                  <div className="w-14 h-14 bg-white/5 border border-white/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                     <Gamepad2 size={20} className="text-gold" />
+                  </div>
+                  <h4 className="font-bebas text-xl text-white tracking-widest">{game}</h4>
+                  <div className="text-[9px] font-bold text-gold uppercase tracking-widest mt-1">Active Division</div>
+                  <div className="mt-4 pt-3 border-t border-white/5 flex justify-center gap-3 text-[9px] text-neutral-500 font-black uppercase tracking-widest">
+                     <span>{data.maps.length} Maps</span>
+                     <span className="text-white/20">|</span>
+                     <span>Pro Tier</span>
+                  </div>
+                </div>
+              ))}
+            </motion.div>
           </div>
         </div>
       </section>
@@ -644,6 +666,22 @@ const Home = ({ onNavigate, onToast, userRole, isAdmin, user, branding }: { onNa
                   </div>
                 ))}
              </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Integrated Live Match Center */}
+      <section className="py-24 bg-neutral-950 px-4 relative">
+        <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-gold/30 to-transparent" />
+        <div className="container mx-auto">
+          <SectionHeader 
+            tag="Live Coverage" 
+            title="Match" 
+            goldSpan="Center" 
+            sub="Real-time match scoring, simulation telemetry, and active intelligence chat feed."
+          />
+          <div className="mt-12 bg-neutral-900/20 border border-white/5 p-6 md:p-8 rounded-sm">
+            <MatchCenter onToast={onToast} />
           </div>
         </div>
       </section>
@@ -927,6 +965,76 @@ const formatSocialLink = (val: string, platform: 'instagram' | 'youtube' | 'disc
   return trimmed;
 };
 
+export const isPlayerNameMatch = (nameA: string, nameB: string): boolean => {
+  if (!nameA || !nameB) return false;
+  
+  // 1. Direct exact or lowercase match
+  const a = nameA.trim().toLowerCase();
+  const b = nameB.trim().toLowerCase();
+  if (a === b) return true;
+  
+  // 2. Helper to clean name (remove common prefixes, non-alphanumeric, and extra letters)
+  const clean = (str: string) => {
+    // Strip common clan prefixes (bts., btsx, bts , team bts, etc)
+    let s = str;
+    s = s.replace(/^(team\s+)?bts[.\s_x-]*/i, '');
+    // Remove all non-alphanumeric characters
+    s = s.replace(/[^a-z0-9]/gi, '');
+    return s;
+  };
+  
+  const cleanA = clean(a);
+  const cleanB = clean(b);
+  
+  if (!cleanA || !cleanB) return false;
+  if (cleanA === cleanB) return true;
+  
+  // 3. Substring matching - if one contains another and is at least 4 characters
+  if (cleanA.length >= 4 && cleanB.length >= 4) {
+    if (cleanA.includes(cleanB) || cleanB.includes(cleanA)) {
+      return true;
+    }
+  }
+
+  // 4. Handle Roman numeral and letter variation differences (like "ii" vs "iii")
+  const stripTrailingRepeated = (str: string) => {
+    return str.replace(/i+$/, 'i');
+  };
+  if (stripTrailingRepeated(cleanA) === stripTrailingRepeated(cleanB)) {
+    return true;
+  }
+  
+  // 5. Short edit distance (Levenshtein distance of 1 or 2 depending on length)
+  const getEditDistance = (s1: string, s2: string): number => {
+    const len1 = s1.length;
+    const len2 = s2.length;
+    const matrix: number[][] = [];
+    
+    for (let i = 0; i <= len1; i++) matrix[i] = [i];
+    for (let j = 0; j <= len2; j++) matrix[0][j] = j;
+    
+    for (let i = 1; i <= len1; i++) {
+      for (let j = 1; j <= len2; j++) {
+        const cost = s1[i - 1] === s2[j - 1] ? 0 : 1;
+        matrix[i][j] = Math.min(
+          matrix[i - 1][j] + 1,
+          matrix[i][j - 1] + 1,
+          matrix[i - 1][j - 1] + cost
+        );
+      }
+    }
+    return matrix[len1][len2];
+  };
+
+  const dist = getEditDistance(cleanA, cleanB);
+  const maxLen = Math.max(cleanA.length, cleanB.length);
+  
+  if (maxLen >= 6 && dist <= 2) return true;
+  if (dist <= 1) return true;
+  
+  return false;
+};
+
 const RosterPage = ({ onToast }: { onToast: (t: string, m: string) => void }) => {
   const [activeDiv, setActiveDiv] = useState<string>('all');
   const [activeGame, setActiveGame] = useState<string>('all');
@@ -938,26 +1046,59 @@ const RosterPage = ({ onToast }: { onToast: (t: string, m: string) => void }) =>
   const [socialLinks, setSocialLinks] = useState<{ youtube: string, instagram: string }>({ youtube: '', instagram: '' });
   const [loading, setLoading] = useState(true);
   const [selectedPlayerScreenshotStats, setSelectedPlayerScreenshotStats] = useState<any[]>([]);
+  const [allScreenshotStats, setAllScreenshotStats] = useState<any[]>([]);
+  const [showAIHub, setShowAIHub] = useState(false);
+  const [comparePlayer1, setComparePlayer1] = useState<any | null>(null);
+  const [comparePlayer2, setComparePlayer2] = useState<any | null>(null);
+  const [aiReport, setAiReport] = useState<string>('');
+  const [generatingReport, setGeneratingReport] = useState(false);
+
+  useEffect(() => {
+    let unsubStats: () => void;
+    try {
+      unsubStats = onSnapshot(collection(db, 'player_screenshot_stats'), (snap) => {
+        setAllScreenshotStats(snap.docs.map(doc => doc.data()));
+      }, (err) => console.error("Stats subscription failed:", err));
+    } catch (err) {
+      console.error(err);
+    }
+    return () => unsubStats?.();
+  }, []);
+
+  const getPlayerLiveStats = (
+    playerName: string,
+    baseScrimsK: number = 0,
+    baseTourneyK: number = 0,
+    baseOpenK: number = 0,
+    baseScrimsM: number = 0,
+    baseTourneyM: number = 0,
+    baseOpenM: number = 0
+  ) => {
+    const playerStats = allScreenshotStats.filter(r => isPlayerNameMatch(r.playerName || '', playerName));
+    
+    const extraScrimsKills = playerStats.filter(r => (r.category || 'Scrims') === 'Scrims').reduce((sum, r) => sum + (r.kills || 0), 0);
+    const extraScrimsMatches = playerStats.filter(r => (r.category || 'Scrims') === 'Scrims').reduce((sum, r) => sum + (r.matches || 0), 0);
+    
+    const extraTourneyKills = playerStats.filter(r => (r.category || 'Scrims') === 'Tournament').reduce((sum, r) => sum + (r.kills || 0), 0);
+    const extraTourneyMatches = playerStats.filter(r => (r.category || 'Scrims') === 'Tournament').reduce((sum, r) => sum + (r.matches || 0), 0);
+
+    const extraOpenKills = playerStats.filter(r => (r.category || 'Scrims') === 'Open Room Match').reduce((sum, r) => sum + (r.kills || 0), 0);
+    const extraOpenMatches = playerStats.filter(r => (r.category || 'Scrims') === 'Open Room Match').reduce((sum, r) => sum + (r.matches || 0), 0);
+
+    const totalKills = baseScrimsK + baseTourneyK + baseOpenK + extraScrimsKills + extraTourneyKills + extraOpenKills;
+    const totalMatches = baseScrimsM + baseTourneyM + baseOpenM + extraScrimsMatches + extraTourneyMatches + extraOpenMatches;
+
+    return { totalKills, totalMatches };
+  };
 
   useEffect(() => {
     if (!selectedPlayer) {
       setSelectedPlayerScreenshotStats([]);
       return;
     }
-    const fetchScreenshotStats = async () => {
-      try {
-        const q = query(
-          collection(db, 'player_screenshot_stats'),
-          where('playerName', '==', selectedPlayer.ign)
-        );
-        const snap = await getDocs(q);
-        setSelectedPlayerScreenshotStats(snap.docs.map(d => d.data()));
-      } catch (err) {
-        console.error("Error loading selected player screenshot stats:", err);
-      }
-    };
-    fetchScreenshotStats();
-  }, [selectedPlayer?.id, selectedPlayer?.ign]);
+    const filtered = allScreenshotStats.filter(r => isPlayerNameMatch(r.playerName || '', selectedPlayer.ign));
+    setSelectedPlayerScreenshotStats(filtered);
+  }, [selectedPlayer?.id, selectedPlayer?.ign, allScreenshotStats]);
 
   useEffect(() => {
     let unsubPlayers: () => void;
@@ -1001,6 +1142,66 @@ const RosterPage = ({ onToast }: { onToast: (t: string, m: string) => void }) =>
     };
   }, []);
 
+  const generateScoutingReport = async () => {
+    if (!comparePlayer1) {
+      onToast("Selection Required", "Please select at least Player 1 to run the scouting protocol.");
+      return;
+    }
+    setGeneratingReport(true);
+    setAiReport('');
+    try {
+      const response = await fetch('/api/gemini-scouting', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          player1: {
+            ign: comparePlayer1.ign,
+            role: comparePlayer1.role,
+            game: comparePlayer1.game,
+            totalKills: (comparePlayer1.scrimsKills || 0) + (comparePlayer1.tourneyKills || 0) + (comparePlayer1.openRoomKills || 0),
+            kd: comparePlayer1.kd || 1.5,
+            mapStats: {
+              erangelKills: comparePlayer1.erangelKills || 0,
+              miramarKills: comparePlayer1.miramarKills || 0,
+              sanhokKills: comparePlayer1.sanhokKills || 0,
+              vikendiKills: comparePlayer1.vikendiKills || 0
+            },
+            achievements: comparePlayer1.achievements || []
+          },
+          player2: comparePlayer2 ? {
+            ign: comparePlayer2.ign,
+            role: comparePlayer2.role,
+            game: comparePlayer2.game,
+            totalKills: (comparePlayer2.scrimsKills || 0) + (comparePlayer2.tourneyKills || 0) + (comparePlayer2.openRoomKills || 0),
+            kd: comparePlayer2.kd || 1.5,
+            mapStats: {
+              erangelKills: comparePlayer2.erangelKills || 0,
+              miramarKills: comparePlayer2.miramarKills || 0,
+              sanhokKills: comparePlayer2.sanhokKills || 0,
+              vikendiKills: comparePlayer2.vikendiKills || 0
+            },
+            achievements: comparePlayer2.achievements || []
+          } : null
+        })
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        setAiReport(data.report);
+        onToast("Scouting Generated", "Gemini Tactical scouting analysis report completed successfully.");
+      } else {
+        throw new Error(data.error || "Failed to generate report");
+      }
+    } catch (err: any) {
+      console.error(err);
+      onToast("Scouting Error", err.message || "Failed to communicate with tactical Gemini server.");
+    } finally {
+      setGeneratingReport(false);
+    }
+  };
+
   const displayPlayers = useMemo(() => {
     let filtered = dbPlayers.length > 0 ? dbPlayers : PLAYERS;
     
@@ -1036,6 +1237,251 @@ const RosterPage = ({ onToast }: { onToast: (t: string, m: string) => void }) =>
     <div className="pt-24 container mx-auto px-4 min-h-screen">
       <SectionHeader tag="The Squad" title="Our" goldSpan="Roster" />
       
+      {/* AI Comparison & Scouting Hub Toggle */}
+      <div className="mb-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-neutral-900/40 p-4 rounded-sm border border-white/5">
+        <div>
+          <span className="text-[9px] font-bold text-gold uppercase tracking-widest font-orbitron flex items-center gap-1">
+            <Sparkles size={12} className="animate-pulse" /> ADVANCED PERFORMANCE METRICS
+          </span>
+          <h3 className="font-bebas text-lg text-white uppercase tracking-wider">Tactical Scouting & Comparison Engine</h3>
+        </div>
+        <button
+          onClick={() => {
+            setShowAIHub(!showAIHub);
+            // Reset compared players to sensible defaults if opening
+            if (!showAIHub && (dbPlayers.length > 0 || PLAYERS.length > 0)) {
+              const list = dbPlayers.length > 0 ? dbPlayers : PLAYERS;
+              setComparePlayer1(list[0]);
+              setComparePlayer2(list[1] || null);
+            }
+          }}
+          className="flex items-center gap-2 bg-gold hover:bg-gold-light text-black px-5 py-2.5 rounded-sm text-xs font-orbitron font-black uppercase tracking-wider transition-all shadow-[0_0_15px_rgba(212,175,55,0.15)] cursor-pointer"
+        >
+          <Sparkles size={14} />
+          {showAIHub ? "Deactivate Scouting Protocol" : "Initialize Scouting Hub"}
+        </button>
+      </div>
+
+      {/* AI Scouting Panel */}
+      <AnimatePresence>
+        {showAIHub && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.3 }}
+            className="overflow-hidden mb-12"
+          >
+            <div className="bg-neutral-950 border border-gold/20 p-6 md:p-8 rounded-sm space-y-8 shadow-[0_0_20px_rgba(212,175,55,0.05)]">
+              <div className="flex items-center gap-3 border-b border-white/5 pb-4">
+                <div className="p-2 bg-gold/10 border border-gold/20 rounded-sm">
+                  <Sparkles size={18} className="text-gold" />
+                </div>
+                <div>
+                  <h3 className="font-bebas text-2xl text-white tracking-widest uppercase">OPERATIVE COMPARISON PROTOCOL</h3>
+                  <p className="text-[10px] text-neutral-500 font-mono uppercase">Model Status: gemini-3.5-flash online • latency: nominal</p>
+                </div>
+              </div>
+
+              {/* Selector row */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Player 1 Selection */}
+                <div className="space-y-2">
+                  <label className="block text-[10px] font-black font-orbitron text-gold uppercase tracking-wider">Select Primary Operative (Player 1)</label>
+                  <select
+                    value={comparePlayer1?.id || ''}
+                    onChange={(e) => {
+                      const list = dbPlayers.length > 0 ? dbPlayers : PLAYERS;
+                      const found = list.find(p => p.id === e.target.value);
+                      if (found) setComparePlayer1(found);
+                    }}
+                    className="w-full bg-neutral-900 border border-white/10 p-3 text-sm text-white rounded-sm focus:border-gold focus:outline-none font-sans"
+                  >
+                    {(dbPlayers.length > 0 ? dbPlayers : PLAYERS).map(p => (
+                      <option key={p.id} value={p.id}>{p.ign} ({p.role})</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Player 2 Selection */}
+                <div className="space-y-2">
+                  <label className="block text-[10px] font-black font-orbitron text-neutral-400 uppercase tracking-wider">Select Opponent/Ally (Player 2 - Optional)</label>
+                  <select
+                    value={comparePlayer2?.id || 'none'}
+                    onChange={(e) => {
+                      if (e.target.value === 'none') {
+                        setComparePlayer2(null);
+                        return;
+                      }
+                      const list = dbPlayers.length > 0 ? dbPlayers : PLAYERS;
+                      const found = list.find(p => p.id === e.target.value);
+                      if (found) setComparePlayer2(found);
+                    }}
+                    className="w-full bg-neutral-900 border border-white/10 p-3 text-sm text-white rounded-sm focus:border-gold focus:outline-none font-sans"
+                  >
+                    <option value="none">-- Single Player Report (No Comparison) --</option>
+                    {(dbPlayers.length > 0 ? dbPlayers : PLAYERS).map(p => (
+                      <option key={p.id} value={p.id}>{p.ign} ({p.role})</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Head to Head comparative metrics card */}
+              {comparePlayer1 && (
+                <div className="bg-neutral-900/30 border border-white/5 p-6 rounded-sm space-y-6">
+                  <div className="grid grid-cols-3 items-center gap-4 text-center border-b border-white/5 pb-4">
+                    <div className="text-left font-bebas text-2xl text-gold tracking-wider truncate">{comparePlayer1.ign}</div>
+                    <div className="text-neutral-500 font-orbitron text-[10px] font-black uppercase tracking-widest">TACTICAL MATRIX</div>
+                    <div className="text-right font-bebas text-2xl text-cyan-400 tracking-wider truncate">{comparePlayer2 ? comparePlayer2.ign : 'N/A'}</div>
+                  </div>
+
+                  {/* Role comparison row */}
+                  <div className="grid grid-cols-3 items-center gap-4 text-center text-xs">
+                    <div className="text-left text-neutral-300 font-bold font-sans uppercase">{comparePlayer1.role}</div>
+                    <div className="text-neutral-500 font-mono text-[9px] uppercase font-bold tracking-wider">OPERATIVE ROLE</div>
+                    <div className="text-right text-neutral-300 font-bold font-sans uppercase">{comparePlayer2 ? comparePlayer2.role : 'N/A'}</div>
+                  </div>
+
+                  {/* Game comparison row */}
+                  <div className="grid grid-cols-3 items-center gap-4 text-center text-xs">
+                    <div className="text-left text-neutral-300 font-mono text-[10px] uppercase">{comparePlayer1.game}</div>
+                    <div className="text-neutral-500 font-mono text-[9px] uppercase font-bold tracking-wider">GAME ASSIGNMENT</div>
+                    <div className="text-right text-neutral-300 font-mono text-[10px] uppercase">{comparePlayer2 ? comparePlayer2.game : 'N/A'}</div>
+                  </div>
+
+                  {/* K/D Ratio comparative bar */}
+                  <div className="space-y-2">
+                    <div className="grid grid-cols-3 items-center gap-4 text-center text-xs">
+                      <div className="text-left font-bebas text-lg text-gold">{comparePlayer1.kd || 1.5} K/D</div>
+                      <div className="text-neutral-500 font-mono text-[9px] uppercase font-bold tracking-wider">KILL / DEATH RATIO</div>
+                      <div className="text-right font-bebas text-lg text-cyan-400">{comparePlayer2 ? (comparePlayer2.kd || 1.5) : 'N/A'}</div>
+                    </div>
+                    {comparePlayer2 && (
+                      <div className="h-1.5 bg-neutral-950 rounded-full overflow-hidden flex">
+                        <div 
+                          className="bg-gold h-full transition-all duration-500" 
+                          style={{ 
+                            width: `${
+                              ((comparePlayer1.kd || 1.5) / ((comparePlayer1.kd || 1.5) + (comparePlayer2.kd || 1.5))) * 100
+                            }%` 
+                          }} 
+                        />
+                        <div 
+                          className="bg-cyan-400 h-full transition-all duration-500" 
+                          style={{ 
+                            width: `${
+                              ((comparePlayer2.kd || 1.5) / ((comparePlayer1.kd || 1.5) + (comparePlayer2.kd || 1.5))) * 100
+                            }%` 
+                          }} 
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Kills comparison bar */}
+                  {(() => {
+                    const k1 = (comparePlayer1.scrimsKills || 0) + (comparePlayer1.tourneyKills || 0) + (comparePlayer1.openRoomKills || 0);
+                    const k2 = comparePlayer2 ? (comparePlayer2.scrimsKills || 0) + (comparePlayer2.tourneyKills || 0) + (comparePlayer2.openRoomKills || 0) : 0;
+                    return (
+                      <div className="space-y-2">
+                        <div className="grid grid-cols-3 items-center gap-4 text-center text-xs">
+                          <div className="text-left font-bebas text-lg text-gold">{k1} kills</div>
+                          <div className="text-neutral-500 font-mono text-[9px] uppercase font-bold tracking-wider">TOTAL HISTORIC KILLS</div>
+                          <div className="text-right font-bebas text-lg text-cyan-400">{comparePlayer2 ? `${k2} kills` : 'N/A'}</div>
+                        </div>
+                        {comparePlayer2 && k1 + k2 > 0 && (
+                          <div className="h-1.5 bg-neutral-950 rounded-full overflow-hidden flex">
+                            <div className="bg-gold h-full transition-all duration-500" style={{ width: `${(k1 / (k1 + k2)) * 100}%` }} />
+                            <div className="bg-cyan-400 h-full transition-all duration-500" style={{ width: `${(k2 / (k1 + k2)) * 100}%` }} />
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
+
+              {/* ACTION GENERATE SCOUTING */}
+              <div className="flex flex-col items-center justify-center space-y-4 pt-4 border-t border-white/5">
+                <button
+                  onClick={generateScoutingReport}
+                  disabled={generatingReport}
+                  className="w-full md:w-auto bg-gradient-to-r from-gold to-yellow-500 hover:from-gold-light hover:to-yellow-400 text-black px-12 py-3 rounded-sm font-orbitron font-black text-sm uppercase tracking-widest transition-all shadow-[0_0_20px_rgba(212,175,55,0.2)] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                >
+                  {generatingReport ? (
+                    <span className="flex items-center gap-2">
+                      <RefreshCw className="animate-spin" size={16} /> Generating AI Report...
+                    </span>
+                  ) : (
+                    <span className="flex items-center gap-2 justify-center">
+                      <Sparkles size={16} /> Generate tailored Gemini scouting report
+                    </span>
+                  )}
+                </button>
+                <p className="text-[9px] text-neutral-500 font-sans">Scouting uses live database telemetry. Model output represents real competitive evaluation.</p>
+              </div>
+
+              {/* Display Generated AI scouting Report */}
+              <AnimatePresence>
+                {(generatingReport || aiReport) && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 15 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -15 }}
+                    className="bg-black/40 border border-gold/10 p-6 md:p-8 rounded-sm space-y-6"
+                  >
+                    <div className="flex justify-between items-center border-b border-gold/20 pb-4">
+                      <h4 className="font-bebas text-xl text-white tracking-widest flex items-center gap-2">
+                        <Sparkles className="text-gold" size={16} /> Gemini AI Tactical Dossier
+                      </h4>
+                      <span className="text-[8px] font-black font-orbitron bg-gold/10 text-gold border border-gold/20 px-2 py-1 rounded-[2px]">CLASSIFIED INTEL</span>
+                    </div>
+
+                    {generatingReport ? (
+                      <div className="py-12 flex flex-col items-center justify-center space-y-3">
+                        <RefreshCw className="text-gold animate-spin" size={32} />
+                        <p className="text-xs text-gold animate-pulse uppercase tracking-widest font-black font-orbitron">Running cognitive telemetry analysis...</p>
+                        <p className="text-[10px] text-neutral-500 font-mono">Synthesizing match histories and map layouts...</p>
+                      </div>
+                    ) : (
+                      <div className="text-left font-sans text-sm text-neutral-300 leading-relaxed space-y-4 max-h-[500px] overflow-y-auto pr-2 scrollbar-thin">
+                        {aiReport.split('\n\n').map((para, i) => {
+                          if (para.startsWith('###')) {
+                            return <h5 key={i} className="font-bebas text-lg text-white tracking-widest mt-6 uppercase border-b border-white/5 pb-1">{para.replace(/###/g, '').trim()}</h5>;
+                          }
+                          if (para.startsWith('##')) {
+                            return <h4 key={i} className="font-bebas text-2xl text-gold tracking-widest mt-8 uppercase border-b border-gold/15 pb-1">{para.replace(/##/g, '').trim()}</h4>;
+                          }
+                          if (para.startsWith('-') || para.startsWith('*')) {
+                            return (
+                              <ul key={i} className="space-y-2 my-2 pl-4 list-disc marker:text-gold">
+                                {para.split('\n').map((li, idx) => (
+                                  <li key={idx} className="text-xs text-neutral-400">
+                                    {li.replace(/^[\s-*]+/, '').replace(/\*\*(.*?)\*\*/g, '$1')}
+                                  </li>
+                                ))}
+                              </ul>
+                            );
+                          }
+                          // format inline bold text
+                          const parts = para.split(/\*\*(.*?)\*\*/g);
+                          return (
+                            <p key={i} className="text-xs md:text-sm text-neutral-400">
+                              {parts.map((p, idx) => idx % 2 === 1 ? <strong key={idx} className="text-gold font-bold font-orbitron text-[11px]">{p}</strong> : p)}
+                            </p>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <div className="flex flex-col gap-6 mb-12">
         <div className="flex flex-wrap gap-2">
           <button 
@@ -1099,36 +1545,47 @@ const RosterPage = ({ onToast }: { onToast: (t: string, m: string) => void }) =>
         <div className="py-20 text-center font-orbitron text-gold animate-pulse">Syncing Tactical Roster...</div>
       ) : (
         <div className="space-y-16 pb-24">
-          {filteredDivs.map(divKey => {
-            const div = resolvedDivisions[divKey];
-            const divPlayers = displayPlayers.filter(p => p.div === divKey);
-            return (
-              <motion.div 
-                key={divKey}
-                layout
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="space-y-8"
-              >
-                <div className="flex items-center gap-4 border-b border-gold/10 pb-4">
-                  <div className="w-1 h-8 rounded-full" style={{ backgroundColor: div.badgeColor || '#FFD700' }} />
-                  <h3 className="font-bebas text-4xl text-white tracking-widest">{div.name}</h3>
-                  <span className="ml-auto text-[10px] text-neutral-500 font-bold uppercase tracking-[0.2em]">{divPlayers.length} ACTIVE PLAYERS</span>
-                </div>
-                
-                <div className="flex md:grid overflow-x-auto md:overflow-x-visible pb-4 md:pb-0 snap-x snap-mandatory md:snap-none no-scrollbar md:grid-cols-3 lg:grid-cols-5 gap-4 -mx-4 px-4 md:mx-0 md:px-0">
-                  {divPlayers.map(p => (
-                    <motion.div 
-                      key={p.id}
-                      layout
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      whileHover={{ y: -5 }}
-                      onClick={() => setSelectedPlayer(selectedPlayer?.id === p.id ? null : p)}
-                      className={`min-w-[280px] md:min-w-0 flex-shrink-0 md:flex-shrink-1 snap-center bg-neutral-900 border transition-all duration-300 ${
-                        selectedPlayer?.id === p.id ? 'border-gold p-8 md:col-span-2 lg:col-span-3 text-left ring-1 ring-gold/20' : 'border-gold/10 p-6 text-center'
-                      } group relative overflow-hidden cursor-pointer`}
-                    >
+          <AnimatePresence mode="popLayout">
+            {filteredDivs.map(divKey => {
+              const div = resolvedDivisions[divKey];
+              const divPlayers = displayPlayers.filter(p => p.div === divKey);
+              return (
+                <motion.div 
+                  key={divKey}
+                  layout
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                  transition={{ duration: 0.3 }}
+                  className="space-y-8"
+                >
+                  <div className="flex items-center gap-4 border-b border-gold/10 pb-4">
+                    <div className="w-1 h-8 rounded-full" style={{ backgroundColor: div.badgeColor || '#FFD700' }} />
+                    <h3 className="font-bebas text-4xl text-white tracking-widest">{div.name}</h3>
+                    <span className="ml-auto text-[10px] text-neutral-500 font-bold uppercase tracking-[0.2em]">{divPlayers.length} ACTIVE PLAYERS</span>
+                  </div>
+                  
+                  <div className="flex md:grid overflow-x-auto md:overflow-x-visible pb-4 md:pb-0 snap-x snap-mandatory md:snap-none no-scrollbar md:grid-cols-3 lg:grid-cols-5 gap-4 -mx-4 px-4 md:mx-0 md:px-0">
+                    <AnimatePresence mode="popLayout">
+                      {divPlayers.map(p => (
+                        <motion.div 
+                          key={p.id}
+                          layout
+                          initial={{ opacity: 0, scale: 0.9 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          exit={{ opacity: 0, scale: 0.9 }}
+                          whileHover={{ y: -5 }}
+                          transition={{
+                            type: 'spring',
+                            stiffness: 260,
+                            damping: 25,
+                            layout: { duration: 0.4, type: 'spring', stiffness: 200, damping: 25 }
+                          }}
+                          onClick={() => setSelectedPlayer(selectedPlayer?.id === p.id ? null : p)}
+                          className={`min-w-[280px] md:min-w-0 flex-shrink-0 md:flex-shrink-1 snap-center bg-neutral-900 border transition-colors duration-300 ${
+                            selectedPlayer?.id === p.id ? 'border-gold p-8 md:col-span-2 lg:col-span-3 text-left ring-1 ring-gold/20' : 'border-gold/10 p-6 text-center'
+                          } group relative overflow-hidden cursor-pointer`}
+                        >
                     <div className="absolute top-0 left-[-100%] w-full h-full bg-gradient-to-r from-transparent via-gold/5 to-transparent skew-x-12 group-hover:left-[100%] transition-all duration-500" />
                     {p.status && p.status !== 'Active' && (
                       <div className={`absolute top-2 right-2 text-[8px] px-2 py-0.5 font-black uppercase tracking-widest z-10 ${
@@ -1164,6 +1621,27 @@ const RosterPage = ({ onToast }: { onToast: (t: string, m: string) => void }) =>
                           <div className="text-[10px] font-bold text-gold uppercase tracking-tighter">{p.role}</div>
                           {p.game && <div className="text-[8px] font-black text-white/40 uppercase tracking-widest">{p.game}</div>}
                         </div>
+
+                        {selectedPlayer?.id !== p.id && (() => {
+                          const { totalKills, totalMatches } = getPlayerLiveStats(
+                            p.ign,
+                            p.scrimsKills, p.tourneyKills, p.openRoomKills,
+                            p.scrimsMatches, p.tourneyMatches, p.openRoomMatches
+                          );
+                          return (
+                            <div className="mt-3 pt-3 border-t border-white/5 flex items-center justify-center gap-4 text-[10px] font-mono text-neutral-400">
+                              <div>
+                                <span className="text-neutral-500 text-[8px] block uppercase tracking-wider font-bold">Matches</span>
+                                <span className="font-orbitron font-bold text-white text-xs">{totalMatches}</span>
+                              </div>
+                              <div className="w-px h-5 bg-white/10" />
+                              <div>
+                                <span className="text-neutral-500 text-[8px] block uppercase tracking-wider font-bold">Kills</span>
+                                <span className="font-orbitron font-bold text-gold text-xs">{totalKills}</span>
+                              </div>
+                            </div>
+                          );
+                        })()}
 
                         {selectedPlayer?.id === p.id && (() => {
                           const extraScrimsKills = selectedPlayerScreenshotStats.filter(r => (r.category || 'Scrims') === 'Scrims').reduce((sum, r) => sum + (r.kills || 0), 0);
@@ -1434,10 +1912,12 @@ const RosterPage = ({ onToast }: { onToast: (t: string, m: string) => void }) =>
                     </motion.div>
 
                   ))}
+                  </AnimatePresence>
                 </div>
               </motion.div>
             );
           })}
+          </AnimatePresence>
         </div>
       )}
 
@@ -2103,8 +2583,8 @@ const SignInPage = ({ onToast, user, isAdmin, onNavigate }: { onToast: (t: strin
       console.error("Google Login Error:", error);
       if (error.code === 'auth/popup-blocked') {
         onToast('Popup Blocked', 'Please enable popups for this site to sign in with Google.');
-      } else if (error.code === 'auth/cancelled-popup-request') {
-        // Ignore user cancellation
+      } else if (error.code === 'auth/popup-closed-by-user' || error.code === 'auth/cancelled-popup-request') {
+        onToast('Login Cancelled', 'The Google sign-in window was closed.');
       } else {
         onToast('Login Error', error.message || 'Failed to sign in with Google');
       }
@@ -2124,6 +2604,7 @@ const SignInPage = ({ onToast, user, isAdmin, onNavigate }: { onToast: (t: strin
   const [userApps, setUserApps] = useState<any[]>([]);
   const [userData, setUserData] = useState<any | null>(null);
   const [squadProfile, setSquadProfile] = useState<any | null>(null);
+  const [aiStats, setAiStats] = useState<{ kills: number; matches: number; mapsCount: number; mapsList: string[] } | null>(null);
   const [team, setTeam] = useState<any>(null);
   const [teamMembers, setTeamMembers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -2163,8 +2644,11 @@ const SignInPage = ({ onToast, user, isAdmin, onNavigate }: { onToast: (t: strin
       setUserRegs(rSnap.docs.map(d => ({ id: d.id, ...d.data() })));
       setUserApps(aSnap.docs.map(d => ({ id: d.id, ...d.data() })));
       
+      let userIgn = '';
       if (!sSnap.empty) {
-        setSquadProfile({ id: sSnap.docs[0].id, ...sSnap.docs[0].data() });
+        const squadData = sSnap.docs[0].data();
+        setSquadProfile({ id: sSnap.docs[0].id, ...squadData });
+        if (squadData.ign) userIgn = squadData.ign;
       }
 
       let userDoc;
@@ -2178,6 +2662,7 @@ const SignInPage = ({ onToast, user, isAdmin, onNavigate }: { onToast: (t: strin
       const uData = userDoc.data();
       if (uData) {
         setUserData({ id: userDoc.id, ...uData });
+        if (uData.ign && !userIgn) userIgn = uData.ign;
         setProfileForm({
           ign: uData.ign || '',
           role: uData.role || 'Assaulter',
@@ -2185,6 +2670,41 @@ const SignInPage = ({ onToast, user, isAdmin, onNavigate }: { onToast: (t: strin
           kd: uData.kd || 0,
           matches: uData.matches || 0
         });
+      }
+
+      if (!userIgn && user.displayName) {
+        userIgn = user.displayName;
+      }
+
+      // Fetch user's AI screenshot stats with robust name matching fallback
+      try {
+        const statsSnap = await getDocs(collection(db, 'player_screenshot_stats'));
+        let totalKills = 0;
+        let totalMatches = 0;
+        const uniqueMaps = new Set<string>();
+        
+        statsSnap.forEach(d => {
+          const sData = d.data();
+          const matchesUid = sData.uid === user.uid;
+          const matchesName = userIgn ? isPlayerNameMatch(sData.playerName || '', userIgn) : false;
+          
+          if (matchesUid || matchesName) {
+            totalKills += Number(sData.kills || 0);
+            totalMatches += Number(sData.matches || 0);
+            if (sData.map) {
+              uniqueMaps.add(sData.map);
+            }
+          }
+        });
+        
+        setAiStats({
+          kills: totalKills,
+          matches: totalMatches,
+          mapsCount: uniqueMaps.size,
+          mapsList: Array.from(uniqueMaps)
+        });
+      } catch (err) {
+        console.error("Error loading user screenshot stats:", err);
       }
       let currentTeamId = uData?.teamId;
 
@@ -2225,6 +2745,7 @@ const SignInPage = ({ onToast, user, isAdmin, onNavigate }: { onToast: (t: strin
     } else {
       setUserRegs([]);
       setUserApps([]);
+      setAiStats(null);
       setTeam(null);
       setTeamMembers([]);
       setLoading(true);
@@ -2379,6 +2900,41 @@ const SignInPage = ({ onToast, user, isAdmin, onNavigate }: { onToast: (t: strin
             </div>
             
             <div className="space-y-4 text-left">
+              {/* AI Screenshot Stats Summary */}
+              {aiStats && (
+                <div className="bg-neutral-950/60 border border-gold/15 p-5 rounded-[2px] mb-6 relative overflow-hidden">
+                  <div className="absolute top-0 right-0 px-2 py-0.5 bg-gold/10 border-b border-l border-gold/20 text-[8px] font-mono text-gold uppercase tracking-widest font-black">
+                    AI VERIFIED
+                  </div>
+                  <h4 className="font-orbitron font-black text-[10px] tracking-wider text-gold uppercase mb-3 flex items-center gap-1.5">
+                    <Sparkles size={11} className="text-gold animate-pulse" /> AI Stats Telemetry
+                  </h4>
+                  <div className="grid grid-cols-3 gap-2 font-mono">
+                    <div className="bg-black/60 p-2.5 border border-white/5 text-center">
+                      <span className="text-[8px] text-neutral-500 block uppercase tracking-widest font-bold">Matches</span>
+                      <span className="font-orbitron font-bold text-sm text-white">{aiStats.matches}</span>
+                    </div>
+                    <div className="bg-black/60 p-2.5 border border-white/5 text-center">
+                      <span className="text-[8px] text-neutral-500 block uppercase tracking-widest font-bold">Kills</span>
+                      <span className="font-orbitron font-bold text-sm text-gold">{aiStats.kills}</span>
+                    </div>
+                    <div className="bg-black/60 p-2.5 border border-white/5 text-center">
+                      <span className="text-[8px] text-neutral-500 block uppercase tracking-widest font-bold">Maps</span>
+                      <span className="font-orbitron font-bold text-sm text-sky-400">{aiStats.mapsCount}</span>
+                    </div>
+                  </div>
+                  {aiStats.mapsList && aiStats.mapsList.length > 0 && (
+                    <div className="mt-3 text-[8px] font-mono text-neutral-500 flex flex-wrap gap-1.5 items-center">
+                      <span className="uppercase tracking-widest font-black text-neutral-400">Maps Played:</span>
+                      {aiStats.mapsList.map((m: string) => (
+                        <span key={m} className="px-1.5 py-0.5 bg-black border border-white/5 text-neutral-300 rounded-sm">
+                          {m}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
               {squadProfile && (
                 <div className="bg-gold/5 border border-gold/20 p-6 text-left mb-6">
                   <div className="text-[10px] font-black text-gold uppercase tracking-[0.2em] mb-4">Professional Profile {squadProfile.squadNumber && `#${squadProfile.squadNumber}`}</div>
@@ -7604,13 +8160,10 @@ const PlayerDossier = ({ player, onClose }: { player: RankingPlayer, onClose: ()
     let active = true;
     const fetchScreenshotStats = async () => {
       try {
-        const q = query(
-          collection(db, 'player_screenshot_stats'),
-          where('playerName', '==', player.ign)
-        );
-        const snap = await getDocs(q);
+        const snap = await getDocs(collection(db, 'player_screenshot_stats'));
         if (!active) return;
-        const rows = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        const allRows = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }) as any);
+        const rows = allRows.filter(r => isPlayerNameMatch(r.playerName || '', player.ign));
         setScreenshotRows(rows);
       } catch (err) {
         console.error("Error loading screenshot stats for dossier:", err);
@@ -7942,44 +8495,80 @@ const PlayerDossier = ({ player, onClose }: { player: RankingPlayer, onClose: ()
 };
 
 const RankingPage = () => {
-  const [rankedPlayers, setRankedPlayers] = useState<RankingPlayer[]>([]);
+  const [rawPlayers, setRawPlayers] = useState<any[]>([]);
+  const [allScreenshotStats, setAllScreenshotStats] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedPlayer, setSelectedPlayer] = useState<RankingPlayer | null>(null);
-  const screenshotRows: any[] = [];
-  const screenshotLoading = false;
 
   useEffect(() => {
-    const unsub = onSnapshot(collection(db, 'squad'), (snap) => {
-      const players = snap.docs.map(doc => {
-        const data = doc.data();
-        const kills = parseInt(data.kills || '0');
-        const matches = parseInt(data.matches || '0');
-        const status = data.status || 'Active';
-        
-        // Ranking Algorithm: 
-        // 1. Kills (100 pts)
-        // 2. Matches (10 pts)
-        // 3. Inactive penalty (-5000)
-        let score = (kills * 100) + (matches * 10);
-        if (status === 'Inactive') score -= 5000;
-
-        return {
-          id: doc.id,
-          ...data,
-          score
-        } as any as RankingPlayer;
-      });
-
-      const sorted = players.sort((a, b) => b.score - a.score);
-      setRankedPlayers(sorted);
+    const unsubSquad = onSnapshot(collection(db, 'squad'), (snap) => {
+      setRawPlayers(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
       setLoading(false);
     }, (error) => {
-      console.error("Error fetching ranking:", error);
+      console.error("Error fetching squad for ranking:", error);
       setLoading(false);
     });
 
-    return () => unsub();
+    const unsubStats = onSnapshot(collection(db, 'player_screenshot_stats'), (snap) => {
+      setAllScreenshotStats(snap.docs.map(doc => doc.data()));
+    }, (err) => {
+      console.error("Stats subscription failed in RankingPage:", err);
+    });
+
+    return () => {
+      unsubSquad();
+      unsubStats();
+    };
   }, []);
+
+  const rankedPlayers = useMemo(() => {
+    const players = rawPlayers.map(player => {
+      const pStats = allScreenshotStats.filter(r => isPlayerNameMatch(r.playerName || '', player.ign));
+      
+      const extraScrimsK = pStats.filter(r => (r.category || 'Scrims') === 'Scrims').reduce((sum, r) => sum + (r.kills || 0), 0);
+      const extraScrimsM = pStats.filter(r => (r.category || 'Scrims') === 'Scrims').reduce((sum, r) => sum + (r.matches || 0), 0);
+      
+      const extraTourneyK = pStats.filter(r => (r.category || 'Scrims') === 'Tournament').reduce((sum, r) => sum + (r.kills || 0), 0);
+      const extraTourneyM = pStats.filter(r => (r.category || 'Scrims') === 'Tournament').reduce((sum, r) => sum + (r.matches || 0), 0);
+
+      const extraOpenK = pStats.filter(r => (r.category || 'Scrims') === 'Open Room Match').reduce((sum, r) => sum + (r.kills || 0), 0);
+      const extraOpenM = pStats.filter(r => (r.category || 'Scrims') === 'Open Room Match').reduce((sum, r) => sum + (r.matches || 0), 0);
+
+      const scrimsKills = Number(player.scrimsKills || 0) + extraScrimsK;
+      const scrimsMatches = Number(player.scrimsMatches || 0) + extraScrimsM;
+
+      const tourneyKills = Number(player.tourneyKills || 0) + extraTourneyK;
+      const tourneyMatches = Number(player.tourneyMatches || 0) + extraTourneyM;
+
+      const openKills = Number(player.openRoomKills || 0) + extraOpenK;
+      const openMatches = Number(player.openRoomMatches || 0) + extraOpenM;
+
+      const totalKills = Number(player.kills || 0) + pStats.reduce((sum, r) => sum + (r.kills || 0), 0);
+      const totalMatches = Number(player.matches || 0) + pStats.reduce((sum, r) => sum + (r.matches || 0), 0);
+
+      const kd = totalMatches > 0 ? (totalKills / totalMatches).toFixed(2) : '0.00';
+
+      const status = player.status || 'Active';
+      let score = (totalKills * 100) + (totalMatches * 10);
+      if (status === 'Inactive') score -= 5000;
+
+      return {
+        ...player,
+        liveScrimsKills: scrimsKills,
+        liveScrimsMatches: scrimsMatches,
+        liveTourneyKills: tourneyKills,
+        liveTourneyMatches: tourneyMatches,
+        liveOpenKills: openKills,
+        liveOpenMatches: openMatches,
+        liveKills: totalKills,
+        liveMatches: totalMatches,
+        liveKd: kd,
+        score
+      };
+    });
+
+    return players.sort((a, b) => b.score - a.score);
+  }, [rawPlayers, allScreenshotStats]);
 
   return (
     <div className="container mx-auto px-4 py-24">
@@ -8066,30 +8655,30 @@ const RankingPage = () => {
                 </div>
 
                 <div className="md:col-span-1 text-center">
-                   <div className="text-[12px] md:text-[10px] text-white font-mono">{player.scrimsKills || 0}/{player.scrimsMatches || 0}</div>
+                   <div className="text-[12px] md:text-[10px] text-white font-mono">{player.liveScrimsKills || 0}/{player.liveScrimsMatches || 0}</div>
                    <div className="text-[7px] text-neutral-600 font-black uppercase">Scrims</div>
                 </div>
 
                 <div className="md:col-span-1 text-center">
-                   <div className="text-[12px] md:text-[10px] text-white font-mono">{player.tourneyKills || 0}/{player.tourneyMatches || 0}</div>
+                   <div className="text-[12px] md:text-[10px] text-white font-mono">{player.liveTourneyKills || 0}/{player.liveTourneyMatches || 0}</div>
                    <div className="text-[7px] text-neutral-600 font-black uppercase">Tourney</div>
                 </div>
 
                 <div className="md:col-span-1 text-center">
-                   <div className="text-[12px] md:text-[10px] text-white font-mono">{player.openRoomKills || 0}/{player.openRoomMatches || 0}</div>
+                   <div className="text-[12px] md:text-[10px] text-white font-mono">{player.liveOpenKills || 0}/{player.liveOpenMatches || 0}</div>
                    <div className="text-[7px] text-neutral-600 font-black uppercase">Open</div>
                 </div>
 
                 <div className="col-span-2 md:col-span-2 text-center flex flex-col items-center pt-2 md:pt-0">
                    <div className="font-orbitron font-bold text-white flex items-center gap-2 text-sm md:text-base">
-                      {player.kills}/{player.matches}
+                      {player.liveKills}/{player.liveMatches}
                       {player.kdHistory && player.kdHistory.length > 1 && (
                         <span className={player.kdHistory[player.kdHistory.length - 1] >= player.kdHistory[player.kdHistory.length - 2] ? 'text-green-500' : 'text-red-500'}>
                           {player.kdHistory[player.kdHistory.length - 1] >= player.kdHistory[player.kdHistory.length - 2] ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
                         </span>
                       )}
                    </div>
-                   <div className="text-[8px] font-bold text-neutral-500">KD: {player.kd}</div>
+                   <div className="text-[8px] font-bold text-neutral-500">KD: {player.liveKd}</div>
                 </div>
 
                 <div className="col-span-2 md:col-span-2 text-right pt-2 md:pt-0 flex flex-col items-end">
@@ -8478,10 +9067,11 @@ const RegistrationPage = ({ tournament, user, onNavigate, onToast }: { tournamen
   );
 };
 
-const TournamentDetailsPage = ({ tournament, user, onNavigate, onToast }: { tournament: Tournament, user: User | null, onNavigate: (p: Page, d?: any) => void, onToast: (t: string, m: string) => void }) => {
+const TournamentDetailsPage = ({ tournament, user, onNavigate, onToast, isAdmin }: { tournament: Tournament, user: User | null, onNavigate: (p: Page, d?: any) => void, onToast: (t: string, m: string) => void, isAdmin?: boolean }) => {
   const [registrations, setRegistrations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [hasRegistered, setHasRegistered] = useState(false);
+  const [activeTab, setActiveTab] = useState<'briefing' | 'bracket' | 'squads'>('briefing');
 
   useEffect(() => {
     let unsubscribe = () => {};
@@ -8637,77 +9227,143 @@ const TournamentDetailsPage = ({ tournament, user, onNavigate, onToast }: { tour
               </div>
             </div>
           </div>
-
-          {/* Operational Briefing (About) */}
-          <div className="bg-neutral-900/30 border border-white/5 p-6 md:p-8 rounded-sm">
-            <h2 className="font-bebas text-2xl text-white tracking-wider mb-4 border-b border-white/5 pb-2 uppercase">
-              Operational Briefing
-            </h2>
-            <p className="text-neutral-400 text-sm leading-relaxed font-sans">
-              {getAboutCopy()}
-            </p>
+          
+          {/* Tabs Selection Bar */}
+          <div className="flex border-b border-white/5 bg-neutral-900/40 p-1 rounded-sm gap-2">
+            <button
+              onClick={() => setActiveTab('briefing')}
+              className={`flex-1 py-3 text-xs uppercase font-orbitron font-black tracking-widest transition-all cursor-pointer ${
+                activeTab === 'briefing' ? 'bg-gold text-black shadow-[0_0_10px_rgba(212,175,55,0.15)]' : 'text-neutral-400 hover:text-white hover:bg-white/5'
+              } rounded-sm`}
+            >
+              Briefing & Rules
+            </button>
+            <button
+              onClick={() => setActiveTab('bracket')}
+              className={`flex-1 py-3 text-xs uppercase font-orbitron font-black tracking-widest transition-all cursor-pointer ${
+                activeTab === 'bracket' ? 'bg-gold text-black shadow-[0_0_10px_rgba(212,175,55,0.15)]' : 'text-neutral-400 hover:text-white hover:bg-white/5'
+              } rounded-sm`}
+            >
+              Match Bracket
+            </button>
+            <button
+              onClick={() => setActiveTab('squads')}
+              className={`flex-1 py-3 text-xs uppercase font-orbitron font-black tracking-widest transition-all cursor-pointer ${
+                activeTab === 'squads' ? 'bg-gold text-black shadow-[0_0_10px_rgba(212,175,55,0.15)]' : 'text-neutral-400 hover:text-white hover:bg-white/5'
+              } rounded-sm`}
+            >
+              Enlisted Squads ({registrations.length})
+            </button>
           </div>
 
-          {/* Competitive Protocols (Rules) */}
-          <div className="bg-neutral-900/30 border border-white/5 p-6 md:p-8 rounded-sm">
-            <h2 className="font-bebas text-2xl text-white tracking-wider mb-4 border-b border-white/5 pb-2 uppercase">
-              Competitive Protocols & Rules
-            </h2>
-            <ul className="space-y-4">
-              {getRules().map((rule, idx) => (
-                <li key={idx} className="flex gap-4 items-start text-sm text-neutral-400 font-sans">
-                  <span className="w-6 h-6 bg-gold/10 border border-gold/30 rounded-full flex items-center justify-center font-orbitron text-[10px] text-gold font-bold shrink-0 mt-0.5">
-                    {idx + 1}
-                  </span>
-                  <span className="leading-relaxed">{rule}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
+          <AnimatePresence mode="wait">
+            {activeTab === 'briefing' && (
+              <motion.div
+                key="briefing-tab"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.2 }}
+                className="space-y-8"
+              >
+                {/* Operational Briefing (About) */}
+                <div className="bg-neutral-900/30 border border-white/5 p-6 md:p-8 rounded-sm">
+                  <h2 className="font-bebas text-2xl text-white tracking-wider mb-4 border-b border-white/5 pb-2 uppercase">
+                    Operational Briefing
+                  </h2>
+                  <p className="text-neutral-400 text-sm leading-relaxed font-sans">
+                    {getAboutCopy()}
+                  </p>
+                </div>
 
-          {/* Enlisted Squads (Registered Teams List) */}
-          <div className="bg-neutral-900/30 border border-white/5 p-6 md:p-8 rounded-sm">
-            <div className="flex justify-between items-center mb-6 border-b border-white/5 pb-2">
-              <h2 className="font-bebas text-2xl text-white tracking-wider uppercase">
-                Enlisted Squads
-              </h2>
-              <span className="text-[10px] font-orbitron font-black text-gold uppercase tracking-wider">
-                {registrations.length} Teams Registered
-              </span>
-            </div>
-
-            {loading ? (
-              <div className="text-center py-12 text-gold animate-pulse text-xs uppercase tracking-widest font-bold">
-                Scanning Active Registrations...
-              </div>
-            ) : registrations.length === 0 ? (
-              <div className="text-center py-16 bg-neutral-900/20 border border-dashed border-white/5 rounded-sm p-6">
-                <p className="text-neutral-600 uppercase font-orbitron text-xs font-bold tracking-widest mb-2">No active operatives enlisted yet</p>
-                <p className="text-neutral-500 text-xs">Be the first to secure your slot on the roster.</p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {registrations.map((reg, idx) => (
-                  <div key={reg.id || idx} className="bg-black/30 border border-white/5 p-4 rounded-sm flex justify-between items-center group hover:border-gold/20 transition-all">
-                    <div>
-                      <h4 className="font-bebas text-lg text-white tracking-wide group-hover:text-gold transition-colors">{reg.teamName}</h4>
-                      <p className="text-[10px] text-neutral-500 font-mono mt-0.5">
-                        Leader: {reg.playerName} (<span className="text-gold/80">{reg.ign}</span>)
-                      </p>
-                      <p className="text-[8px] text-neutral-600 font-mono uppercase font-bold tracking-tighter mt-1">
-                        Registered: {reg.createdAt?.toDate ? reg.createdAt.toDate().toLocaleDateString() : 'Recent'}
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <span className="text-[9px] font-black font-orbitron bg-white/5 border border-white/10 text-neutral-400 px-2 py-1 rounded-[2px]">
-                        {((reg.squad?.length || 0) + 1)} Operatives
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                {/* Competitive Protocols (Rules) */}
+                <div className="bg-neutral-900/30 border border-white/5 p-6 md:p-8 rounded-sm">
+                  <h2 className="font-bebas text-2xl text-white tracking-wider mb-4 border-b border-white/5 pb-2 uppercase">
+                    Competitive Protocols & Rules
+                  </h2>
+                  <ul className="space-y-4">
+                    {getRules().map((rule, idx) => (
+                      <li key={idx} className="flex gap-4 items-start text-sm text-neutral-400 font-sans">
+                        <span className="w-6 h-6 bg-gold/10 border border-gold/30 rounded-full flex items-center justify-center font-orbitron text-[10px] text-gold font-bold shrink-0 mt-0.5">
+                          {idx + 1}
+                        </span>
+                        <span className="leading-relaxed">{rule}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </motion.div>
             )}
-          </div>
+
+            {activeTab === 'bracket' && (
+              <motion.div
+                key="bracket-tab"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.2 }}
+              >
+                <TournamentBracket 
+                  tournamentId={tournament.id}
+                  registrations={registrations}
+                  isAdmin={!!isAdmin}
+                  onToast={onToast}
+                />
+              </motion.div>
+            )}
+
+            {activeTab === 'squads' && (
+              <motion.div
+                key="squads-tab"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.2 }}
+                className="bg-neutral-900/30 border border-white/5 p-6 md:p-8 rounded-sm"
+              >
+                <div className="flex justify-between items-center mb-6 border-b border-white/5 pb-2">
+                  <h2 className="font-bebas text-2xl text-white tracking-wider uppercase">
+                    Enlisted Squads
+                  </h2>
+                  <span className="text-[10px] font-orbitron font-black text-gold uppercase tracking-wider">
+                    {registrations.length} Teams Registered
+                  </span>
+                </div>
+
+                {loading ? (
+                  <div className="text-center py-12 text-gold animate-pulse text-xs uppercase tracking-widest font-bold">
+                    Scanning Active Registrations...
+                  </div>
+                ) : registrations.length === 0 ? (
+                  <div className="text-center py-16 bg-neutral-900/20 border border-dashed border-white/5 rounded-sm p-6">
+                    <p className="text-neutral-600 uppercase font-orbitron text-xs font-bold tracking-widest mb-2">No active operatives enlisted yet</p>
+                    <p className="text-neutral-500 text-xs">Be the first to secure your slot on the roster.</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {registrations.map((reg, idx) => (
+                      <div key={reg.id || idx} className="bg-black/30 border border-white/5 p-4 rounded-sm flex justify-between items-center group hover:border-gold/20 transition-all">
+                        <div>
+                          <h4 className="font-bebas text-lg text-white tracking-wide group-hover:text-gold transition-colors">{reg.teamName}</h4>
+                          <p className="text-[10px] text-neutral-500 font-mono mt-0.5">
+                            Leader: {reg.playerName} (<span className="text-gold/80">{reg.ign}</span>)
+                          </p>
+                          <p className="text-[8px] text-neutral-600 font-mono uppercase font-bold tracking-tighter mt-1">
+                            Registered: {reg.createdAt?.toDate ? reg.createdAt.toDate().toLocaleDateString() : 'Recent'}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-[9px] font-black font-orbitron bg-white/5 border border-white/10 text-neutral-400 px-2 py-1 rounded-[2px]">
+                            {((reg.squad?.length || 0) + 1)} Operatives
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </motion.div>
+            )}
+          </AnimatePresence>
 
         </div>
 
@@ -9047,7 +9703,6 @@ export default function App() {
           onClick={() => setCurrentPage('home')}
           className="flex items-center gap-3 font-orbitron font-black text-lg md:text-xl tracking-[0.2em] text-gold decoration-none group"
         >
-          <BtsLogo size={42} showText={false} className="transition-transform duration-300 group-hover:scale-105" />
           <span>
             {branding.orgName.split(' ')[0]}<span className="text-neon-red">⚡</span>{branding.orgName.split(' ')[1] || 'ESPORTS'}
           </span>
@@ -9149,7 +9804,7 @@ export default function App() {
               <RegistrationPage tournament={selectedTournament} user={user} onNavigate={navigate} onToast={showToast} />
             )}
             {currentPage === 'tournament-details' && selectedTournament && (
-              <TournamentDetailsPage tournament={selectedTournament} user={user} onNavigate={navigate} onToast={showToast} />
+              <TournamentDetailsPage tournament={selectedTournament} user={user} onNavigate={navigate} onToast={showToast} isAdmin={isAdmin} />
             )}
             {currentPage === 'results' && <ResultsPage onToast={showToast} isAdmin={isAdmin} />}
             {currentPage === 'ranking' && <RankingPage onToast={showToast} />}
@@ -9177,7 +9832,6 @@ export default function App() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-12 mb-16">
             <div className="space-y-6">
               <div className="flex flex-col items-start gap-4">
-                <BtsLogo size={110} showText={true} className="filter saturate-[1.15]" />
                 <div className="font-orbitron font-black text-xl tracking-[0.2em] text-gold mt-2">
                   {branding.orgName.split(' ')[0]}<span className="text-neon-red">⚡</span>{branding.orgName.split(' ')[1] || 'ESPORTS'}
                 </div>

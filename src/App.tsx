@@ -40,6 +40,7 @@ import {
   ShieldAlert,
   Check,
   Ban,
+  X,
   Trash2,
   Zap,
   Eye,
@@ -47,6 +48,8 @@ import {
   ExternalLink,
   Lock,
   Loader2,
+  Clock,
+  Timer,
   PenTool,
   Facebook,
   Twitter,
@@ -4029,7 +4032,8 @@ const AdminDashboard = ({ onToast, adminRole, user, orgStatsProp }: { onToast: (
     instagramLink: '',
     youtubeLink: '',
     description: '',
-    rules: ''
+    rules: '',
+    regCloseDate: ''
   });
   const [highlightForm, setHighlightForm] = useState({
     title: '',
@@ -4139,7 +4143,8 @@ const AdminDashboard = ({ onToast, adminRole, user, orgStatsProp }: { onToast: (
       instagramLink: t.instagramLink || '',
       youtubeLink: t.youtubeLink || '',
       description: t.description || '',
-      rules: t.rules || ''
+      rules: t.rules || '',
+      regCloseDate: t.regCloseDate || ''
     });
     setShowCreateForm(true);
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -4269,7 +4274,8 @@ const AdminDashboard = ({ onToast, adminRole, user, orgStatsProp }: { onToast: (
       instagramLink: '',
       youtubeLink: '',
       description: '',
-      rules: ''
+      rules: '',
+      regCloseDate: ''
     });
     setResultForm({
       tournamentId: '',
@@ -7341,6 +7347,15 @@ function doPost(e) {
                         />
                       </div>
                       <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest italic opacity-60">Registration Deadline</label>
+                        <input 
+                          value={tournamentForm.regCloseDate}
+                          onChange={(e) => setTournamentForm({...tournamentForm, regCloseDate: e.target.value})}
+                          type="datetime-local" 
+                          className="w-full bg-black/40 border border-white/10 p-3 text-sm text-white focus:border-gold outline-none" 
+                        />
+                      </div>
+                      <div className="space-y-1">
                         <label className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest italic opacity-60">Execution Status</label>
                         <select 
                           value={tournamentForm.status}
@@ -7880,6 +7895,7 @@ function doPost(e) {
                            <th className="px-4 py-4">Leader / IGN / Discord</th>
                            <th className="px-4 py-4">Squad Depth</th>
                            <th className="px-4 py-4">Contact</th>
+                           <th className="px-4 py-4">Status</th>
                            <th className="px-4 py-4 text-right">Actions</th>
                          </tr>
                        </thead>
@@ -7912,8 +7928,145 @@ function doPost(e) {
                              </td>
                              <td className="px-4 py-4">
                                <div className="text-[10px] text-neutral-400 font-mono italic">{reg.contact || 'N/A'}</div>
+                              </td>
+                              <td className="px-4 py-4">
+                                {reg.status === 'confirmed' ? (
+                                  <span className="inline-flex items-center gap-1 px-2.5 py-1 text-[8px] font-black font-orbitron bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 uppercase tracking-wider rounded-[2px]">
+                                    <Check size={10} /> Confirmed
+                                  </span>
+                                ) : reg.status === 'rejected' ? (
+                                  <span className="inline-flex items-center gap-1 px-2.5 py-1 text-[8px] font-black font-orbitron bg-red-500/10 border border-red-500/30 text-red-500 uppercase tracking-wider rounded-[2px]">
+                                    <X size={10} /> Rejected
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1 px-2.5 py-1 text-[8px] font-black font-orbitron bg-yellow-500/10 border border-yellow-500/30 text-yellow-500 uppercase tracking-wider rounded-[2px]">
+                                    <Clock size={10} /> Pending
+                                  </span>
+                                )}
                              </td>
                              <td className="px-4 py-4 text-right">
+                                <div className="flex items-center justify-end gap-1.5">
+                                  {reg.status !== 'confirmed' && (
+                                    <button
+                                      title="Confirm Registration"
+                                      onClick={async () => {
+                                        try {
+                                          await updateDoc(doc(db, 'tournaments', selectedTournamentForRegs!, 'registrations', reg.id), {
+                                            status: 'confirmed'
+                                          });
+                                          
+                                          // Recalculate active slots
+                                          const updatedRegsSnap = await getDocs(collection(db, 'tournaments', selectedTournamentForRegs!, 'registrations'));
+                                          const activeRegsCount = updatedRegsSnap.docs.filter(d => {
+                                            const data = d.data();
+                                            if (d.id === reg.id) return true;
+                                            return data.status !== 'rejected';
+                                          }).length;
+                                          
+                                          await updateDoc(doc(db, 'tournaments', selectedTournamentForRegs!), {
+                                            slots: activeRegsCount
+                                          });
+
+                                          onToast('Confirmed ✅', `${reg.teamName} slot has been confirmed.`);
+                                          fetchData();
+                                        } catch (e) {
+                                          reportFirestoreError(e, 'update', `tournaments/${selectedTournamentForRegs}/registrations/${reg.id}`, onToast);
+                                        }
+                                      }}
+                                      className="p-1.5 text-neutral-500 hover:text-emerald-400 hover:bg-emerald-500/5 border border-transparent hover:border-emerald-500/20 rounded-[2px] transition-all"
+                                    >
+                                      <Check size={14} />
+                                    </button>
+                                  )}
+                                  {reg.status !== 'rejected' && (
+                                    <button
+                                      title="Reject Registration"
+                                      onClick={async () => {
+                                        try {
+                                          await updateDoc(doc(db, 'tournaments', selectedTournamentForRegs!, 'registrations', reg.id), {
+                                            status: 'rejected'
+                                          });
+                                          
+                                          // Recalculate active slots
+                                          const updatedRegsSnap = await getDocs(collection(db, 'tournaments', selectedTournamentForRegs!, 'registrations'));
+                                          const activeRegsCount = updatedRegsSnap.docs.filter(d => {
+                                            const data = d.data();
+                                            if (d.id === reg.id) return false;
+                                            return data.status !== 'rejected';
+                                          }).length;
+                                          
+                                          await updateDoc(doc(db, 'tournaments', selectedTournamentForRegs!), {
+                                            slots: activeRegsCount
+                                          });
+
+                                          onToast('Rejected ❌', `${reg.teamName} slot has been rejected.`);
+                                          fetchData();
+                                        } catch (e) {
+                                          reportFirestoreError(e, 'update', `tournaments/${selectedTournamentForRegs}/registrations/${reg.id}`, onToast);
+                                        }
+                                      }}
+                                      className="p-1.5 text-neutral-500 hover:text-red-500 hover:bg-red-500/5 border border-transparent hover:border-red-500/20 rounded-[2px] transition-all"
+                                    >
+                                      <X size={14} />
+                                    </button>
+                                  )}
+                                  {reg.status && reg.status !== 'pending' && (
+                                    <button
+                                      title="Set to Pending"
+                                      onClick={async () => {
+                                        try {
+                                          await updateDoc(doc(db, 'tournaments', selectedTournamentForRegs!, 'registrations', reg.id), {
+                                            status: 'pending'
+                                          });
+                                          
+                                          // Recalculate active slots
+                                          const updatedRegsSnap = await getDocs(collection(db, 'tournaments', selectedTournamentForRegs!, 'registrations'));
+                                          const activeRegsCount = updatedRegsSnap.docs.filter(d => {
+                                            const data = d.data();
+                                            if (d.id === reg.id) return true;
+                                            return data.status !== 'rejected';
+                                          }).length;
+                                          
+                                          await updateDoc(doc(db, 'tournaments', selectedTournamentForRegs!), {
+                                            slots: activeRegsCount
+                                          });
+
+                                          onToast('Updated ⏳', `${reg.teamName} status updated to pending.`);
+                                          fetchData();
+                                        } catch (e) {
+                                          reportFirestoreError(e, 'update', `tournaments/${selectedTournamentForRegs}/registrations/${reg.id}`, onToast);
+                                        }
+                                      }}
+                                      className="p-1.5 text-neutral-500 hover:text-yellow-500 hover:bg-yellow-500/5 border border-transparent hover:border-yellow-500/20 rounded-[2px] transition-all"
+                                    >
+                                      <RefreshCw size={12} />
+                                    </button>
+                                  )}
+                                  
+                                  <button 
+                                    title="Cancel Registration"
+                                    onClick={async () => {
+                                      if (!confirm('Cancel this registration and free up the slot?')) return;
+                                      try {
+                                        await deleteDoc(doc(db, 'tournaments', selectedTournamentForRegs!, 'registrations', reg.id));
+                                        const updatedRegsSnap = await getDocs(collection(db, 'tournaments', selectedTournamentForRegs!, 'registrations'));
+                                        const activeRegsCount = updatedRegsSnap.docs.filter(d => d.data().status !== 'rejected').length;
+                                        await updateDoc(doc(db, 'tournaments', selectedTournamentForRegs!), {
+                                          slots: activeRegsCount
+                                        });
+                                        onToast('Removed', 'Team entry deleted and slot regained.');
+                                        fetchData();
+                                      } catch (e) {
+                                        reportFirestoreError(e, 'delete', `tournaments/${selectedTournamentForRegs}/registrations/${reg.id}`, onToast);
+                                      }
+                                    }}
+                                    className="p-1.5 text-neutral-700 hover:text-red-500 transition-colors"
+                                  >
+                                    <Trash2 size={16} />
+                                  </button>
+                                </div>
+                              </td>
+                              <td style={{ display: 'none' }}>
                                 <button 
                                   onClick={async () => {
                                     if (!confirm('Cancel this registration and free up the slot?')) return;
@@ -9067,6 +9220,124 @@ const RegistrationPage = ({ tournament, user, onNavigate, onToast }: { tournamen
   );
 };
 
+const RegistrationCountdown = ({ tournament }: { tournament: Tournament }) => {
+  const [timeLeft, setTimeLeft] = useState<{ days: number; hours: number; minutes: number; seconds: number; isOver: boolean }>({
+    days: 0,
+    hours: 0,
+    minutes: 0,
+    seconds: 0,
+    isOver: false
+  });
+
+  const targetDate = useMemo(() => {
+    // 1. Try explicit regCloseDate
+    if (tournament.regCloseDate) {
+      const parsed = new Date(tournament.regCloseDate);
+      if (!isNaN(parsed.getTime())) {
+        return parsed;
+      }
+    }
+
+    // 2. Try parsing tournament.date (e.g. "25 OCT 2026")
+    if (tournament.date) {
+      const parsed = new Date(tournament.date);
+      if (!isNaN(parsed.getTime())) {
+        return parsed;
+      }
+    }
+
+    // 3. Fallback: 4 days after tournament's createdAt or 3 days from now
+    let fallbackBase = new Date();
+    if (tournament.createdAt) {
+      if (typeof (tournament.createdAt as any).toDate === 'function') {
+        fallbackBase = (tournament.createdAt as any).toDate();
+      } else {
+        fallbackBase = new Date(tournament.createdAt);
+      }
+    }
+    const fallbackDate = new Date(fallbackBase.getTime() + 4 * 24 * 60 * 60 * 1000);
+    return fallbackDate;
+  }, [tournament.regCloseDate, tournament.date, tournament.createdAt]);
+
+  useEffect(() => {
+    const calculateTime = () => {
+      const now = new Date();
+      const diff = targetDate.getTime() - now.getTime();
+
+      if (diff <= 0) {
+        setTimeLeft({ days: 0, hours: 0, minutes: 0, seconds: 0, isOver: true });
+        return;
+      }
+
+      const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+      const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+      const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+
+      setTimeLeft({ days, hours, minutes, seconds, isOver: false });
+    };
+
+    calculateTime();
+    const interval = setInterval(calculateTime, 1000);
+    return () => clearInterval(interval);
+  }, [targetDate]);
+
+  if (timeLeft.isOver || tournament.status === 'closed' || tournament.status === 'finished') {
+    return (
+      <div className="bg-neutral-950/80 border border-neutral-800/80 p-5 rounded-sm text-center relative overflow-hidden shadow-[inset_0_0_20px_rgba(239,68,68,0.05)]">
+        <div className="absolute top-0 left-0 w-full h-[1px] bg-red-500/30" />
+        <span className="text-[9px] font-bold text-neutral-500 uppercase tracking-widest font-orbitron block mb-1">
+          REGISTRATION STATUS
+        </span>
+        <div className="text-red-500 font-bebas text-2xl tracking-widest uppercase flex items-center justify-center gap-2">
+          <Ban size={16} /> REGISTRATION CLOSED
+        </div>
+        <p className="text-[10px] text-neutral-500 font-mono mt-1 uppercase tracking-wider">
+          The window for submitting tactical deployment squads has expired.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-neutral-950/80 border border-gold/15 p-5 rounded-sm relative overflow-hidden shadow-[0_0_15px_rgba(212,175,55,0.05)]">
+      <div className="absolute top-0 right-0 px-2.5 py-1 bg-gold/10 border-b border-l border-gold/15 text-[8px] font-mono text-gold uppercase tracking-widest font-black">
+        LIVE TICKER
+      </div>
+      <h4 className="font-orbitron font-black text-[10px] tracking-widest text-gold uppercase mb-3 flex items-center gap-2">
+        <Timer size={12} className="text-gold animate-pulse" />
+        {tournament.status === 'upcoming' ? 'Registration Commences In' : 'Registration Closing In'}
+      </h4>
+      <div className="grid grid-cols-4 gap-2 text-center">
+        <div className="bg-neutral-900/60 p-2 border border-white/5 rounded-sm">
+          <span className="font-orbitron font-black text-xl text-white block">
+            {String(timeLeft.days).padStart(2, '0')}
+          </span>
+          <span className="text-[8px] text-neutral-500 block uppercase tracking-widest font-mono font-bold">Days</span>
+        </div>
+        <div className="bg-neutral-900/60 p-2 border border-white/5 rounded-sm">
+          <span className="font-orbitron font-black text-xl text-gold block">
+            {String(timeLeft.hours).padStart(2, '0')}
+          </span>
+          <span className="text-[8px] text-neutral-500 block uppercase tracking-widest font-mono font-bold">Hours</span>
+        </div>
+        <div className="bg-neutral-900/60 p-2 border border-white/5 rounded-sm">
+          <span className="font-orbitron font-black text-xl text-white block">
+            {String(timeLeft.minutes).padStart(2, '0')}
+          </span>
+          <span className="text-[8px] text-neutral-500 block uppercase tracking-widest font-mono font-bold">Mins</span>
+        </div>
+        <div className="bg-neutral-900/60 p-2 border border-white/5 rounded-sm">
+          <span className="font-orbitron font-black text-xl text-neutral-400 block animate-pulse">
+            {String(timeLeft.seconds).padStart(2, '0')}
+          </span>
+          <span className="text-[8px] text-neutral-500 block uppercase tracking-widest font-mono font-bold">Secs</span>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const TournamentDetailsPage = ({ tournament, user, onNavigate, onToast, isAdmin }: { tournament: Tournament, user: User | null, onNavigate: (p: Page, d?: any) => void, onToast: (t: string, m: string) => void, isAdmin?: boolean }) => {
   const [registrations, setRegistrations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -9149,7 +9420,8 @@ const TournamentDetailsPage = ({ tournament, user, onNavigate, onToast, isAdmin 
     closed: 'bg-red-500/10 text-red-400 border border-red-500/20'
   };
 
-  const slotsAvailable = (tournament.total || 72) - registrations.length;
+  const activeRegistrations = registrations.filter(r => r.status !== 'rejected');
+  const slotsAvailable = (tournament.total || 72) - activeRegistrations.length;
 
   return (
     <div className="pt-24 container mx-auto px-4 max-w-7xl pb-24 min-h-screen">
@@ -9344,7 +9616,22 @@ const TournamentDetailsPage = ({ tournament, user, onNavigate, onToast, isAdmin 
                     {registrations.map((reg, idx) => (
                       <div key={reg.id || idx} className="bg-black/30 border border-white/5 p-4 rounded-sm flex justify-between items-center group hover:border-gold/20 transition-all">
                         <div>
-                          <h4 className="font-bebas text-lg text-white tracking-wide group-hover:text-gold transition-colors">{reg.teamName}</h4>
+                          <h4 className="font-bebas text-lg text-white tracking-wide group-hover:text-gold transition-colors flex items-center gap-2">
+                            {reg.teamName}
+                            {reg.status === 'confirmed' ? (
+                              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[7px] font-black font-orbitron bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 uppercase tracking-wider rounded-[1px]">
+                                Confirmed
+                              </span>
+                            ) : reg.status === 'rejected' ? (
+                              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[7px] font-black font-orbitron bg-red-500/10 border border-red-500/20 text-red-500 uppercase tracking-wider rounded-[1px]">
+                                Denied
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[7px] font-black font-orbitron bg-yellow-500/10 border border-yellow-500/20 text-yellow-500 uppercase tracking-wider rounded-[1px]">
+                                Pending
+                              </span>
+                            )}
+                          </h4>
                           <p className="text-[10px] text-neutral-500 font-mono mt-0.5">
                             Leader: {reg.playerName} (<span className="text-gold/80">{reg.ign}</span>)
                           </p>
@@ -9407,6 +9694,9 @@ const TournamentDetailsPage = ({ tournament, user, onNavigate, onToast, isAdmin 
                 )}
               </div>
 
+              {/* Countdown block */}
+              <RegistrationCountdown tournament={tournament} />
+
               {/* Slots remaining block */}
               <div>
                 <span className="text-[9px] font-bold text-neutral-500 uppercase tracking-widest font-orbitron block mb-1">
@@ -9416,7 +9706,7 @@ const TournamentDetailsPage = ({ tournament, user, onNavigate, onToast, isAdmin 
                   Total Slots: <span className="text-white font-bold">{tournament.total || 72}</span>
                 </div>
                 <div className="font-mono text-sm text-neutral-300 mt-0.5">
-                  Slots Allocated: <span className="text-gold font-bold">{registrations.length}</span>
+                  Slots Allocated: <span className="text-gold font-bold">{activeRegistrations.length}</span>
                 </div>
                 <div className="font-mono text-sm text-neutral-300 mt-0.5">
                   Remaining Slots: <span className={`${slotsAvailable > 0 ? 'text-green-400 font-bold' : 'text-red-500 font-bold'}`}>{Math.max(0, slotsAvailable)}</span>
@@ -9426,14 +9716,64 @@ const TournamentDetailsPage = ({ tournament, user, onNavigate, onToast, isAdmin 
                 <div className="w-full bg-black/40 h-1.5 rounded-full mt-3 overflow-hidden border border-white/5">
                   <div 
                     className="bg-gold h-full transition-all duration-500" 
-                    style={{ width: `${Math.min(100, (registrations.length / (tournament.total || 72)) * 100)}%` }}
+                    style={{ width: `${Math.min(100, (activeRegistrations.length / (tournament.total || 72)) * 100)}%` }}
                   />
                 </div>
               </div>
 
               {/* Action Buttons */}
               <div className="pt-4 border-t border-white/5 space-y-3">
-                {hasRegistered ? (
+                {hasRegistered || registrations.some(r => r.uid === user?.uid) ? (
+                  (() => {
+                    const userReg = registrations.find(r => r.uid === user?.uid);
+                    if (userReg) {
+                      if (userReg.status === 'confirmed') {
+                        return (
+                          <div className="bg-emerald-500/10 border border-emerald-500/30 p-4 rounded-sm text-center">
+                            <div className="flex items-center justify-center gap-2 text-emerald-400 font-orbitron font-black text-xs uppercase tracking-widest mb-1">
+                              <Check size={14} /> Confirmed Slot ✅
+                            </div>
+                            <p className="text-[10px] text-emerald-200/80 font-mono uppercase tracking-tighter">
+                              Your team registration "{userReg.teamName}" is CONFIRMED. Prepare your squad for deployment.
+                            </p>
+                          </div>
+                        );
+                      } else if (userReg.status === 'rejected') {
+                        return (
+                          <div className="bg-red-500/10 border border-red-500/30 p-4 rounded-sm text-center">
+                            <div className="flex items-center justify-center gap-2 text-red-500 font-orbitron font-black text-xs uppercase tracking-widest mb-1">
+                              <X size={14} /> Slot Denied ❌
+                            </div>
+                            <p className="text-[10px] text-red-300 font-mono uppercase tracking-tighter">
+                              Your registration for "{userReg.teamName}" was rejected by admins. Please verify your roster info.
+                            </p>
+                          </div>
+                        );
+                      } else {
+                        return (
+                          <div className="bg-yellow-500/10 border border-yellow-500/30 p-4 rounded-sm text-center animate-pulse">
+                            <div className="flex items-center justify-center gap-2 text-yellow-500 font-orbitron font-black text-xs uppercase tracking-widest mb-1">
+                              <Clock size={14} /> Pending Confirmation ⏳
+                            </div>
+                            <p className="text-[10px] text-yellow-300 font-mono uppercase tracking-tighter">
+                              Your registration "{userReg.teamName}" is PENDING admin approval. Refresh or wait for validation.
+                            </p>
+                          </div>
+                        );
+                      }
+                    }
+                    return (
+                      <div className="bg-green-500/10 border border-green-500/30 p-4 rounded-sm text-center">
+                        <div className="flex items-center justify-center gap-2 text-green-400 font-orbitron font-black text-xs uppercase tracking-widest mb-1">
+                          <Check size={14} /> Enlisted
+                        </div>
+                        <p className="text-[10px] text-neutral-400 font-mono uppercase tracking-tighter">
+                          Your deployment signature has been verified in the operational tactical grid.
+                        </p>
+                      </div>
+                    );
+                  })()
+                ) : false ? (
                   <div className="bg-green-500/10 border border-green-500/30 p-4 rounded-sm text-center">
                     <div className="flex items-center justify-center gap-2 text-green-400 font-orbitron font-black text-xs uppercase tracking-widest mb-1">
                       <Check size={14} /> Enlisted

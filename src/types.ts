@@ -79,6 +79,8 @@ export interface Tournament {
   youtubeLink?: string;
   description?: string;
   rules?: string;
+  regCloseDate?: string;
+  createdAt?: any;
 }
 
 export interface TournamentResult {

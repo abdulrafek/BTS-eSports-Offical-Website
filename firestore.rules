@@ -184,7 +184,7 @@ service cloud.firestore {
     }
 
     match /applications/{appId} {
-      allow get: if (isSignedIn() && resource.data.uid == request.auth.uid) || isAdmin();
+      allow get: if (isSignedIn() && (resource == null || resource.data.uid == request.auth.uid)) || isAdmin();
       allow list: if (isSignedIn() && resource.data.uid == request.auth.uid) || isAdmin(); 
       allow create: if isSignedIn() && isValidId(appId) && isValidApplication(incoming());
       allow update, delete: if isAdmin();
@@ -199,7 +199,7 @@ service cloud.firestore {
 
       match /registrations/{regId} {
         allow list: if isSignedIn();
-        allow get: if isSignedIn() && (resource.data.uid == request.auth.uid || isTournamentManager());
+        allow get: if isSignedIn() && (regId == request.auth.uid || isTournamentManager());
         allow create: if isVerified() && regId == request.auth.uid && isValidRegistration(incoming(), tournamentId);
         allow update: if isTournamentManager();
         allow delete: if isTournamentManager() || (isSignedIn() && resource.data.uid == request.auth.uid && resource.data.status == 'pending');
@@ -261,7 +261,7 @@ service cloud.firestore {
       match /requests/{requestId} {
         allow read: if isSignedIn() && (
           get(/databases/$(database)/documents/teams/$(teamId)).data.ownerUid == request.auth.uid || 
-          resource.data.uid == request.auth.uid
+          (resource == null || resource.data.uid == request.auth.uid)
         );
         allow create: if isVerified() && incoming().uid == request.auth.uid;
         allow update: if isAdmin() || (isSignedIn() && get(/databases/$(database)/documents/teams/$(teamId)).data.ownerUid == request.auth.uid);

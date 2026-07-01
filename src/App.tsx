@@ -85,6 +85,23 @@ import {
   increment 
 } from 'firebase/firestore';
 
+const withTimeout = <T,>(promise: Promise<T>, timeoutMs = 6000, label = 'Operation'): Promise<T> => {
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error(`${label} timed out after ${timeoutMs}ms`)), timeoutMs)
+    )
+  ]);
+};
+
+export const getDocWithTimeout = async (ref: any, timeoutMs = 6000): Promise<any> => {
+  return withTimeout(getDoc(ref), timeoutMs, `getDoc(${ref.path || 'document'})`);
+};
+
+export const getDocsWithTimeout = async (q: any, timeoutMs = 6000): Promise<any> => {
+  return withTimeout(getDocs(q), timeoutMs, 'getDocs');
+};
+
 const Sparkline = ({ data, color }: { data: number[], color: string }) => {
   const chartData = data.map((val, i) => ({ value: val, index: i }));
   return (
@@ -4358,91 +4375,91 @@ const AdminDashboard = ({ onToast, adminRole, user, orgStatsProp }: { onToast: (
     setLoading(true);
     try {
       if (activeTab === 'live') {
-        const docSnap = await getDoc(doc(db, 'site_config', 'youtube_live'));
+        const docSnap = await getDocWithTimeout(doc(db, 'site_config', 'youtube_live'));
         if (docSnap.exists()) {
           setLiveConfig(docSnap.data() as any);
         }
       } else if (activeTab === 'applications') {
         const q = query(collection(db, 'applications'), orderBy('createdAt', 'desc'));
-        const snap = await getDocs(q);
+        const snap = await getDocsWithTimeout(q);
         setApplications(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
       } else if (activeTab === 'tournaments') {
         const q = query(collection(db, 'tournaments'), orderBy('createdAt', 'desc'));
-        const snap = await getDocs(q);
+        const snap = await getDocsWithTimeout(q);
         setTournaments(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
       } else if (activeTab === 'results') {
         const q = query(collection(db, 'results'), orderBy('createdAt', 'desc'));
-        const snap = await getDocs(q);
+        const snap = await getDocsWithTimeout(q);
         setResults(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
         
-        const tSnap = await getDocs(query(collection(db, 'tournaments'), orderBy('name')));
+        const tSnap = await getDocsWithTimeout(query(collection(db, 'tournaments'), orderBy('name')));
         setTournaments(tSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
       } else if (activeTab === 'highlights') {
         const q = query(collection(db, 'highlights'), orderBy('createdAt', 'desc'));
-        const snap = await getDocs(q);
+        const snap = await getDocsWithTimeout(q);
         setHighlights(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
       } else if (activeTab === 'achievements') {
         const q = query(collection(db, 'achievements'), orderBy('createdAt', 'desc'));
-        const snap = await getDocs(q);
+        const snap = await getDocsWithTimeout(q);
         setAchievements(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
       } else if (activeTab === 'scrims') {
         const q = query(collection(db, 'scrims'), orderBy('createdAt', 'desc'));
-        const snap = await getDocs(q);
+        const snap = await getDocsWithTimeout(q);
         setScrims(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
       } else if (activeTab === 'squad') {
         const q = query(collection(db, 'squad'), orderBy('createdAt', 'desc'));
-        const snap = await getDocs(q);
+        const snap = await getDocsWithTimeout(q);
         setSquad(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
         
-        const dSnap = await getDocs(query(collection(db, 'divisions'), orderBy('name')));
+        const dSnap = await getDocsWithTimeout(query(collection(db, 'divisions'), orderBy('name')));
         setDivisions(dSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
       } else if (activeTab === 'divisions') {
         const q = query(collection(db, 'divisions'), orderBy('createdAt', 'desc'));
-        const snap = await getDocs(q);
+        const snap = await getDocsWithTimeout(q);
         setDivisions(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
       } else if (activeTab === 'staff') {
         const q = query(collection(db, 'staff'), orderBy('order', 'asc'));
-        const snap = await getDocs(q);
+        const snap = await getDocsWithTimeout(q);
         setStaff(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
       } else if (activeTab === 'users') {
         const q = query(collection(db, 'users'), orderBy('updatedAt', 'desc'));
-        const snap = await getDocs(q);
+        const snap = await getDocsWithTimeout(q);
         setUsers(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
       } else if (activeTab === 'stats' || activeTab === 'data') {
         const q = query(collection(db, 'squad'), orderBy('ign'));
-        const snap = await getDocs(q);
+        const snap = await getDocsWithTimeout(q);
         const roster = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         setSquad(roster);
         
-        const dSnap = await getDocs(query(collection(db, 'divisions'), orderBy('name')));
+        const dSnap = await getDocsWithTimeout(query(collection(db, 'divisions'), orderBy('name')));
         const divs = dSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         setDivisions(divs);
-      } else if (activeTab === 'security') { // Fixed from 'admins' to 'security'
+      } else if (activeTab === 'admins' || activeTab === 'security') {
         const q = query(collection(db, 'admins'), orderBy('email'));
-        const snap = await getDocs(q);
+        const snap = await getDocsWithTimeout(q);
         setAdmins(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-      } else if (activeTab === 'settings' || activeTab === 'info' || activeTab === 'oversight') { // Added info and oversight
-        const sSnap = await getDoc(doc(db, 'site_config', 'social'));
+      } else if (activeTab === 'settings' || activeTab === 'info' || activeTab === 'oversight') {
+        const sSnap = await getDocWithTimeout(doc(db, 'site_config', 'social'));
         if (sSnap.exists()) {
           setSocialLinksForm(sSnap.data() as any);
         }
-        const oSnap = await getDoc(doc(db, 'site_config', 'org_stats'));
+        const oSnap = await getDocWithTimeout(doc(db, 'site_config', 'org_stats'));
         if (oSnap.exists()) {
           setOrgStatsForm(oSnap.data() as any);
         }
-        const bSnap = await getDoc(doc(db, 'site_config', 'branding'));
+        const bSnap = await getDocWithTimeout(doc(db, 'site_config', 'branding'));
         if (bSnap.exists()) {
           setBrandingConfig(bSnap.data() as any);
         }
       } else if (activeTab === 'registrations') {
-        const tSnap = await getDocs(query(collection(db, 'tournaments'), orderBy('createdAt', 'desc')));
+        const tSnap = await getDocsWithTimeout(query(collection(db, 'tournaments'), orderBy('createdAt', 'desc')));
         const allTournaments = tSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         setTournaments(allTournaments);
         
         const targetTId = selectedTournamentForRegs || (allTournaments.length > 0 ? allTournaments[0].id : null);
         if (targetTId) {
           const q = query(collection(db, 'tournaments', targetTId, 'registrations'), orderBy('createdAt', 'desc'));
-          const snap = await getDocs(q);
+          const snap = await getDocsWithTimeout(q);
           setRegistrations(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
           setSelectedTournamentForRegs(targetTId);
         }

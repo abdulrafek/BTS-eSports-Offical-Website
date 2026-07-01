@@ -282,6 +282,25 @@
         "foundedYear": { "type": "integer" },
         "updatedAt": { "type": "string", "format": "date-time" }
       }
+    },
+    "BracketMatch": {
+      "title": "Bracket Match",
+      "description": "Tournament bracket match details.",
+      "type": "object",
+      "properties": {
+        "round": { "type": "integer" },
+        "type": { "type": "string", "enum": ["upper", "lower", "grand_final"] },
+        "status": { "type": "string", "enum": ["scheduled", "live", "completed"] },
+        "team1": { "type": "object" },
+        "team2": { "type": "object" },
+        "winnerId": { "type": "string" },
+        "nextMatchId": { "type": "string" },
+        "nextMatchSlot": { "type": "string" },
+        "loserMatchId": { "type": "string" },
+        "loserMatchSlot": { "type": "string" },
+        "map": { "type": "string" }
+      },
+      "required": ["round", "type", "team1", "team2", "status"]
     }
   },
   "firestore": {
@@ -312,6 +331,10 @@
     "tournaments/{tournamentId}/registrations/{registrationId}": {
       "schema": "Registration",
       "description": "Team entries for a specific tournament"
+    },
+    "tournaments/{tournamentId}/matches/{matchId}": {
+      "schema": "BracketMatch",
+      "description": "Match entries for a specific tournament bracket"
     },
     "teams/{teamId}": {
       "schema": "Team",

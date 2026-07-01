@@ -13,39 +13,47 @@ service cloud.firestore {
     function incoming() { return request.resource.data; }
     function existing() { return resource.data; }
     function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
+    function affectedKeys(inc, ext) {
+      return inc.diff(ext).addedKeys().union(inc.diff(ext).removedKeys()).union(inc.diff(ext).modifiedKeys());
+    }
     
-    function isAdmin() { 
+    function isSystemAdmin() {
       return isSignedIn() && (
-        request.auth.token.email == "argaming2020119@gmail.com" || 
-        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+        request.auth.uid == "rJl7x9o9YuRuWSSl4VA1j7imnmn1" ||
+        request.auth.token.get('email', '') == "argaming2020119@gmail.com"
       );
     }
 
+    function isAdmin() { 
+      return isSystemAdmin() || (isSignedIn() && exists(/databases/$(database)/documents/admins/$(request.auth.uid)));
+    }
+
     function getAdminRole() {
-      return get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.role;
+      return exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ? get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.get('role', 'User') : 'User';
     }
 
     function hasAdminRole(role) {
       return isSignedIn() && (
-        request.auth.token.email == "argaming2020119@gmail.com" || 
+        request.auth.uid == "rJl7x9o9YuRuWSSl4VA1j7imnmn1" ||
+        request.auth.token.get('email', '') == "argaming2020119@gmail.com" || 
         (exists(/databases/$(database)/documents/admins/$(request.auth.uid)) && (
-          get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.role == "Super Admin" ||
-          get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.role == role
+          get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.get('role', '') == "Super Admin" ||
+          get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.get('role', '') == role
         ))
       );
     }
 
-    function isTournamentManager() { return hasAdminRole("Tournament Manager"); }
-    function isContentModerator() { return hasAdminRole("Content Moderator"); }
-    function isHeadScout() { return hasAdminRole("Head Scout"); }
-    function isSuperAdmin() { return hasAdminRole("Super Admin"); }
+    function isTournamentManager() { return isSystemAdmin() || hasAdminRole("Tournament Manager"); }
+    function isContentModerator() { return isSystemAdmin() || hasAdminRole("Content Moderator"); }
+    function isHeadScout() { return isSystemAdmin() || hasAdminRole("Head Scout"); }
+    function isSuperAdmin() { return isSystemAdmin() || hasAdminRole("Super Admin"); }
 
     // --- Entity Validations ---
 
     function isValidUser(data) {
       return data.keys().hasAll(['uid', 'email']) &&
              data.uid == request.auth.uid &&
-             data.email == request.auth.token.email &&
+             data.email == request.auth.token.get('email', '') &&
              (data.get('ign', '') is string) &&
              (data.get('systemId', '') is string) &&
              (data.get('role', 'User') is string) &&
@@ -135,13 +143,24 @@ service cloud.firestore {
     }
 
     function isValidRegistration(data, tId) {
-      return data.keys().hasAll(['teamName', 'leaderName', 'ign', 'playerId', 'uid', 'status']) &&
-             data.uid == request.auth.uid &&
+      return data.uid == request.auth.uid &&
              data.status == 'pending' &&
              data.teamName is string &&
-             data.leaderName is string &&
              data.ign is string &&
              data.playerId is string;
+    }
+
+    function isValidMatch(data) {
+      return data.keys().hasAll(['round', 'type', 'team1', 'team2', 'status']) &&
+             data.round is int &&
+             data.type in ['upper', 'lower', 'grand_final'] &&
+             data.status in ['scheduled', 'live', 'completed'] &&
+             data.team1 is map &&
+             data.team2 is map &&
+             (data.team1.get('id', '') is string) &&
+             (data.team1.get('name', '') is string) &&
+             (data.team2.get('id', '') is string) &&
+             (data.team2.get('name', '') is string);
     }
 
     // --- Collections ---
@@ -151,7 +170,7 @@ service cloud.firestore {
       allow list: if isAdmin();
       allow create: if isSignedIn() && isOwner(userId) && isValidId(userId) && isValidUser(incoming());
       allow update: if (isSignedIn() && isOwner(userId) && isValidUser(incoming()) &&
-                    incoming().diff(existing()).affectedKeys().hasOnly(['ign', 'role', 'division', 'kd', 'matches', 'updatedAt', 'teamId', 'teamName', 'systemId', 'email', 'uid', 'createdAt']) &&
+                    affectedKeys(incoming(), existing()).hasOnly(['ign', 'role', 'division', 'kd', 'matches', 'updatedAt', 'teamId', 'teamName', 'systemId', 'email', 'uid', 'createdAt']) &&
                     (incoming().get('updatedAt', request.time) == request.time) &&
                     (incoming().uid == existing().uid) &&
                     (incoming().email == existing().email) &&
@@ -169,7 +188,7 @@ service cloud.firestore {
                        incoming().get('role', '') == existing().get('role', '') && 
                        incoming().get('div', '') == existing().get('div', '') &&
                        isValidSquadMember(incoming()) &&
-                       incoming().diff(existing()).affectedKeys().hasOnly(['ign', 'instagram', 'youtube', 'discord', 'updatedAt', 'squadNumber']));
+                       affectedKeys(incoming(), existing()).hasOnly(['ign', 'instagram', 'youtube', 'discord', 'updatedAt', 'squadNumber']));
       allow delete: if isHeadScout();
     }
 
@@ -194,23 +213,30 @@ service cloud.firestore {
       allow read: if true;
       allow create: if isTournamentManager() && isValidTournament(incoming()) && (incoming().get('createdAt', request.time) == request.time);
         allow update: if (isTournamentManager() && isValidTournament(incoming()) && (incoming().get('updatedAt', request.time) == request.time)) ||
-                      (isSignedIn() && incoming().diff(existing()).affectedKeys().hasOnly(['slots']));
+                      (isSignedIn() && affectedKeys(incoming(), existing()).hasOnly(['slots']));
       allow delete: if isTournamentManager();
 
       match /registrations/{regId} {
-        allow list: if isSignedIn();
-        allow get: if isSignedIn() && (regId == request.auth.uid || isTournamentManager());
-        allow create: if isVerified() && regId == request.auth.uid && isValidRegistration(incoming(), tournamentId);
+        allow read: if true;
+        allow create: if isSignedIn() && regId == request.auth.uid && isValidRegistration(incoming(), tournamentId);
         allow update: if isTournamentManager();
         allow delete: if isTournamentManager() || (isSignedIn() && resource.data.uid == request.auth.uid && resource.data.status == 'pending');
+      }
+
+      match /matches/{matchId} {
+        allow read: if true;
+        allow create: if isTournamentManager() && isValidMatch(incoming());
+        allow update: if isTournamentManager() && isValidMatch(incoming());
+        allow delete: if isTournamentManager();
       }
     }
 
     match /{path=**}/registrations/{regId} {
-      allow list: if isSignedIn() && (
-        resource.data.uid == request.auth.uid || 
-        request.auth.token.email == "argaming2020119@gmail.com"
-      );
+      allow read: if true;
+    }
+
+    match /{path=**}/matches/{matchId} {
+      allow read: if true;
     }
 
     match /results/{resultId} {

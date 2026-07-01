@@ -40,7 +40,6 @@ import {
   ShieldAlert,
   Check,
   Ban,
-  X,
   Trash2,
   Zap,
   Eye,

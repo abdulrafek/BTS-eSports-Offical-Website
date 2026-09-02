@@ -41,8 +41,16 @@ export interface FirestoreErrorInfo {
 
 export function handleFirestoreError(error: any, operation: FirestoreErrorInfo['operationType'], path: string | null = null): void {
   const errMsg = error?.message || String(error);
-  if (errMsg.toLowerCase().includes('offline') || errMsg.toLowerCase().includes('connection')) {
-    console.warn(`[Firestore Offline] Connection offline. Operation '${operation}' on path '${path}' failed. Using local/cached cache if available.`);
+  const lowerMsg = errMsg.toLowerCase();
+  if (
+    lowerMsg.includes('offline') || 
+    lowerMsg.includes('connection') || 
+    lowerMsg.includes('timed out') || 
+    lowerMsg.includes('timeout') || 
+    lowerMsg.includes('unavailable') ||
+    lowerMsg.includes('deadline-exceeded')
+  ) {
+    console.warn(`[Firestore Status] ${errMsg}. Operation '${operation}' on path '${path}' failed or timed out. Falling back to local/cached state.`);
     return;
   }
   const user = auth.currentUser;
@@ -62,5 +70,6 @@ export function handleFirestoreError(error: any, operation: FirestoreErrorInfo['
       })) || [],
     }
   };
+  console.error('Firestore Error: ', JSON.stringify(errorInfo));
   throw new Error(JSON.stringify(errorInfo));
 }

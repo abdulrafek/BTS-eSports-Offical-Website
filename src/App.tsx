@@ -90,7 +90,7 @@ import {
   increment 
 } from 'firebase/firestore';
 
-const withTimeout = <T,>(promise: Promise<T>, timeoutMs = 6000, label = 'Operation'): Promise<T> => {
+const withTimeout = <T,>(promise: Promise<T>, timeoutMs = 25000, label = 'Operation'): Promise<T> => {
   return Promise.race([
     promise,
     new Promise<never>((_, reject) =>
@@ -99,11 +99,11 @@ const withTimeout = <T,>(promise: Promise<T>, timeoutMs = 6000, label = 'Operati
   ]);
 };
 
-export const getDocWithTimeout = async (ref: any, timeoutMs = 6000): Promise<any> => {
+export const getDocWithTimeout = async (ref: any, timeoutMs = 25000): Promise<any> => {
   return withTimeout(getDoc(ref), timeoutMs, `getDoc(${ref.path || 'document'})`);
 };
 
-export const getDocsWithTimeout = async (q: any, timeoutMs = 6000): Promise<any> => {
+export const getDocsWithTimeout = async (q: any, timeoutMs = 25000): Promise<any> => {
   return withTimeout(getDocs(q), timeoutMs, 'getDocs');
 };
 
@@ -185,9 +185,17 @@ const ShareMenu = ({ title, url, onToast }: { title: string, url: string, onToas
 
 const reportFirestoreError = (error: unknown, operationType: any, path: string | null, onToast: (t: string, m: string) => void) => {
   const errMsg = error instanceof Error ? error.message : String(error);
-  if (errMsg.toLowerCase().includes('offline') || errMsg.toLowerCase().includes('connection') || errMsg.toLowerCase().includes('unavailable')) {
-    onToast('Offline Sync', 'Network socket transiently disconnected. Operating on local cache.');
-    console.warn(`[Firestore Status] Client offline. Path: ${path || 'unknown'}`);
+  const lowerMsg = errMsg.toLowerCase();
+  if (
+    lowerMsg.includes('offline') || 
+    lowerMsg.includes('connection') || 
+    lowerMsg.includes('unavailable') || 
+    lowerMsg.includes('timed out') || 
+    lowerMsg.includes('timeout') ||
+    lowerMsg.includes('deadline-exceeded')
+  ) {
+    onToast('Network Lag', 'Syncing data with cloud servers in background.');
+    console.warn(`[Firestore Status] Timeout/Offline on path: ${path || 'unknown'}`);
     return;
   }
   onToast('Access Denied', error instanceof Error ? (error.message.includes('insufficient permissions') ? 'Protocol rejection: Insufficient clearance.' : error.message) : 'Security breach detected.');
@@ -289,27 +297,20 @@ const Home = ({ onNavigate, onToast, userRole, isAdmin, user, branding, modules 
     const fetchData = async () => {
       try {
         try {
-          const tSnap = await getDocs(query(collection(db, 'tournaments'), orderBy('createdAt', 'desc'), limit(3)));
-          const loadedHomeTournaments = await Promise.all(tSnap.docs.map(async (dDoc) => {
+          let tSnap;
+          try {
+            tSnap = await getDocs(query(collection(db, 'tournaments'), orderBy('createdAt', 'desc'), limit(3)));
+          } catch {
+            tSnap = await getDocs(query(collection(db, 'tournaments'), limit(3)));
+          }
+          const loadedHomeTournaments = tSnap.docs.map((dDoc) => {
             const data = dDoc.data();
-            let exactSlotsCount = data.slots || 0;
-            try {
-              if (auth.currentUser) {
-                const regsSnap = await getDocs(collection(db, 'tournaments', dDoc.id, 'registrations'));
-                exactSlotsCount = regsSnap.size;
-                if (data.slots !== exactSlotsCount) {
-                  await updateDoc(doc(db, 'tournaments', dDoc.id), { slots: exactSlotsCount });
-                }
-              }
-            } catch (e) {
-              // Fallback silently for unauthenticated or non-admin users
-            }
-            return { id: dDoc.id, ...data, slots: exactSlotsCount };
-          }));
+            return { id: dDoc.id, ...data, slots: data.slots || 0 };
+          });
           setDbTournaments(loadedHomeTournaments);
         } catch (tError) {
           const errMsg = tError instanceof Error ? tError.message : String(tError);
-          if (errMsg.toLowerCase().includes('offline') || errMsg.toLowerCase().includes('connection') || errMsg.toLowerCase().includes('unavailable')) {
+          if (errMsg.toLowerCase().includes('offline') || errMsg.toLowerCase().includes('connection') || errMsg.toLowerCase().includes('unavailable') || errMsg.toLowerCase().includes('timed out')) {
             console.warn("Tournaments load offline fallback.");
           } else {
             console.error("Error loading tournaments:", tError);
@@ -1067,6 +1068,76 @@ export const isPlayerNameMatch = (nameA: string, nameB: string): boolean => {
   return false;
 };
 
+export const calculatePlayerLiveStats = (
+  playerName: string,
+  allScreenshotStats: any[] = [],
+  baseScrimsK: number | string = 0,
+  baseTourneyK: number | string = 0,
+  baseOpenK: number | string = 0,
+  baseScrimsM: number | string = 0,
+  baseTourneyM: number | string = 0,
+  baseOpenM: number | string = 0
+) => {
+  const pName = (playerName || '').trim();
+  const playerStats = (allScreenshotStats || []).filter(r => isPlayerNameMatch(r.playerName || '', pName));
+  
+  const extraScrimsKills = playerStats.filter(r => (r.category || 'Scrims') === 'Scrims').reduce((sum, r) => sum + (Number(r.kills) || 0), 0);
+  const extraScrimsMatches = playerStats.filter(r => (r.category || 'Scrims') === 'Scrims').reduce((sum, r) => sum + (Number(r.matches) || 0), 0);
+  
+  const extraTourneyKills = playerStats.filter(r => (r.category || 'Scrims') === 'Tournament').reduce((sum, r) => sum + (Number(r.kills) || 0), 0);
+  const extraTourneyMatches = playerStats.filter(r => (r.category || 'Scrims') === 'Tournament').reduce((sum, r) => sum + (Number(r.matches) || 0), 0);
+
+  const extraOpenKills = playerStats.filter(r => (r.category || 'Scrims') === 'Open Room Match').reduce((sum, r) => sum + (Number(r.kills) || 0), 0);
+  const extraOpenMatches = playerStats.filter(r => (r.category || 'Scrims') === 'Open Room Match').reduce((sum, r) => sum + (Number(r.matches) || 0), 0);
+
+  const extraTotalKills = extraScrimsKills + extraTourneyKills + extraOpenKills;
+  const extraTotalMatches = extraScrimsMatches + extraTourneyMatches + extraOpenMatches;
+
+  const scrimsKills = (Number(baseScrimsK) || 0) + extraScrimsKills;
+  const scrimsMatches = (Number(baseScrimsM) || 0) + extraScrimsMatches;
+  const tourneyKills = (Number(baseTourneyK) || 0) + extraTourneyKills;
+  const tourneyMatches = (Number(baseTourneyM) || 0) + extraTourneyMatches;
+  const openRoomKills = (Number(baseOpenK) || 0) + extraOpenKills;
+  const openRoomMatches = (Number(baseOpenM) || 0) + extraOpenMatches;
+
+  const totalKills = scrimsKills + tourneyKills + openRoomKills;
+  const totalMatches = scrimsMatches + tourneyMatches + openRoomMatches;
+  const kd = totalMatches > 0 ? parseFloat((totalKills / totalMatches).toFixed(2)) : 0;
+
+  return {
+    totalKills,
+    totalMatches,
+    scrimsKills,
+    scrimsMatches,
+    tourneyKills,
+    tourneyMatches,
+    openRoomKills,
+    openRoomMatches,
+    extraTotalKills,
+    extraTotalMatches,
+    kd
+  };
+};
+
+export const getPlayerTacticalBadge = (status: string | undefined, kd: number, totalKills: number, totalMatches: number) => {
+  if (status === 'Inactive') {
+    return { label: 'INACTIVE', bg: 'bg-neutral-800 text-neutral-400 border-white/10' };
+  }
+  if (status === 'On Trial') {
+    return { label: 'PROBATION EVAL', bg: 'bg-blue-500/20 text-blue-400 border-blue-500/30' };
+  }
+  if (kd >= 4.0 || totalKills >= 150) {
+    return { label: 'APEX FRAGGER', bg: 'bg-amber-500/20 text-amber-300 border-amber-500/40 shadow-xs' };
+  }
+  if (kd >= 2.5) {
+    return { label: 'SHARPSHOOTER', bg: 'bg-purple-500/20 text-purple-300 border-purple-500/40' };
+  }
+  if (totalMatches > 20) {
+    return { label: 'COMBAT VETERAN', bg: 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40' };
+  }
+  return { label: 'TACTICAL READY', bg: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' };
+};
+
 const RosterPage = ({ onToast }: { onToast: (t: string, m: string) => void }) => {
   const [activeDiv, setActiveDiv] = useState<string>('all');
   const [activeGame, setActiveGame] = useState<string>('all');
@@ -1106,21 +1177,7 @@ const RosterPage = ({ onToast }: { onToast: (t: string, m: string) => void }) =>
     baseTourneyM: number = 0,
     baseOpenM: number = 0
   ) => {
-    const playerStats = allScreenshotStats.filter(r => isPlayerNameMatch(r.playerName || '', playerName));
-    
-    const extraScrimsKills = playerStats.filter(r => (r.category || 'Scrims') === 'Scrims').reduce((sum, r) => sum + (r.kills || 0), 0);
-    const extraScrimsMatches = playerStats.filter(r => (r.category || 'Scrims') === 'Scrims').reduce((sum, r) => sum + (r.matches || 0), 0);
-    
-    const extraTourneyKills = playerStats.filter(r => (r.category || 'Scrims') === 'Tournament').reduce((sum, r) => sum + (r.kills || 0), 0);
-    const extraTourneyMatches = playerStats.filter(r => (r.category || 'Scrims') === 'Tournament').reduce((sum, r) => sum + (r.matches || 0), 0);
-
-    const extraOpenKills = playerStats.filter(r => (r.category || 'Scrims') === 'Open Room Match').reduce((sum, r) => sum + (r.kills || 0), 0);
-    const extraOpenMatches = playerStats.filter(r => (r.category || 'Scrims') === 'Open Room Match').reduce((sum, r) => sum + (r.matches || 0), 0);
-
-    const totalKills = baseScrimsK + baseTourneyK + baseOpenK + extraScrimsKills + extraTourneyKills + extraOpenKills;
-    const totalMatches = baseScrimsM + baseTourneyM + baseOpenM + extraScrimsMatches + extraTourneyMatches + extraOpenMatches;
-
-    return { totalKills, totalMatches };
+    return calculatePlayerLiveStats(playerName, allScreenshotStats, baseScrimsK, baseTourneyK, baseOpenK, baseScrimsM, baseTourneyM, baseOpenM);
   };
 
   useEffect(() => {
@@ -1182,6 +1239,20 @@ const RosterPage = ({ onToast }: { onToast: (t: string, m: string) => void }) =>
     setGeneratingReport(true);
     setAiReport('');
     try {
+      const stats1 = getPlayerLiveStats(
+        comparePlayer1.ign,
+        comparePlayer1.scrimsKills, comparePlayer1.tourneyKills, comparePlayer1.openRoomKills,
+        comparePlayer1.scrimsMatches, comparePlayer1.tourneyMatches, comparePlayer1.openRoomMatches
+      );
+      const kd1 = stats1.totalMatches > 0 ? parseFloat((stats1.totalKills / stats1.totalMatches).toFixed(2)) : (comparePlayer1.kd || 1.5);
+
+      const stats2 = comparePlayer2 ? getPlayerLiveStats(
+        comparePlayer2.ign,
+        comparePlayer2.scrimsKills, comparePlayer2.tourneyKills, comparePlayer2.openRoomKills,
+        comparePlayer2.scrimsMatches, comparePlayer2.tourneyMatches, comparePlayer2.openRoomMatches
+      ) : null;
+      const kd2 = stats2 ? (stats2.totalMatches > 0 ? parseFloat((stats2.totalKills / stats2.totalMatches).toFixed(2)) : (comparePlayer2.kd || 1.5)) : 1.5;
+
       const response = await fetch('/api/gemini-scouting', {
         method: 'POST',
         headers: {
@@ -1192,8 +1263,9 @@ const RosterPage = ({ onToast }: { onToast: (t: string, m: string) => void }) =>
             ign: comparePlayer1.ign,
             role: comparePlayer1.role,
             game: comparePlayer1.game,
-            totalKills: (comparePlayer1.scrimsKills || 0) + (comparePlayer1.tourneyKills || 0) + (comparePlayer1.openRoomKills || 0),
-            kd: comparePlayer1.kd || 1.5,
+            totalKills: stats1.totalKills,
+            totalMatches: stats1.totalMatches,
+            kd: kd1,
             mapStats: {
               erangelKills: comparePlayer1.erangelKills || 0,
               miramarKills: comparePlayer1.miramarKills || 0,
@@ -1202,12 +1274,13 @@ const RosterPage = ({ onToast }: { onToast: (t: string, m: string) => void }) =>
             },
             achievements: comparePlayer1.achievements || []
           },
-          player2: comparePlayer2 ? {
+          player2: comparePlayer2 && stats2 ? {
             ign: comparePlayer2.ign,
             role: comparePlayer2.role,
             game: comparePlayer2.game,
-            totalKills: (comparePlayer2.scrimsKills || 0) + (comparePlayer2.tourneyKills || 0) + (comparePlayer2.openRoomKills || 0),
-            kd: comparePlayer2.kd || 1.5,
+            totalKills: stats2.totalKills,
+            totalMatches: stats2.totalMatches,
+            kd: kd2,
             mapStats: {
               erangelKills: comparePlayer2.erangelKills || 0,
               miramarKills: comparePlayer2.miramarKills || 0,
@@ -1383,44 +1456,71 @@ const RosterPage = ({ onToast }: { onToast: (t: string, m: string) => void }) =>
                   </div>
 
                   {/* K/D Ratio comparative bar */}
-                  <div className="space-y-2">
-                    <div className="grid grid-cols-3 items-center gap-4 text-center text-xs">
-                      <div className="text-left font-bebas text-lg text-gold">{comparePlayer1.kd || 1.5} K/D</div>
-                      <div className="text-neutral-500 font-mono text-[9px] uppercase font-bold tracking-wider">KILL / DEATH RATIO</div>
-                      <div className="text-right font-bebas text-lg text-cyan-400">{comparePlayer2 ? (comparePlayer2.kd || 1.5) : 'N/A'}</div>
-                    </div>
-                    {comparePlayer2 && (
-                      <div className="h-1.5 bg-neutral-950 rounded-full overflow-hidden flex">
-                        <div 
-                          className="bg-gold h-full transition-all duration-500" 
-                          style={{ 
-                            width: `${
-                              ((comparePlayer1.kd || 1.5) / ((comparePlayer1.kd || 1.5) + (comparePlayer2.kd || 1.5))) * 100
-                            }%` 
-                          }} 
-                        />
-                        <div 
-                          className="bg-cyan-400 h-full transition-all duration-500" 
-                          style={{ 
-                            width: `${
-                              ((comparePlayer2.kd || 1.5) / ((comparePlayer1.kd || 1.5) + (comparePlayer2.kd || 1.5))) * 100
-                            }%` 
-                          }} 
-                        />
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Kills comparison bar */}
                   {(() => {
-                    const k1 = (comparePlayer1.scrimsKills || 0) + (comparePlayer1.tourneyKills || 0) + (comparePlayer1.openRoomKills || 0);
-                    const k2 = comparePlayer2 ? (comparePlayer2.scrimsKills || 0) + (comparePlayer2.tourneyKills || 0) + (comparePlayer2.openRoomKills || 0) : 0;
+                    const stats1 = getPlayerLiveStats(
+                      comparePlayer1.ign,
+                      comparePlayer1.scrimsKills, comparePlayer1.tourneyKills, comparePlayer1.openRoomKills,
+                      comparePlayer1.scrimsMatches, comparePlayer1.tourneyMatches, comparePlayer1.openRoomMatches
+                    );
+                    const stats2 = comparePlayer2 ? getPlayerLiveStats(
+                      comparePlayer2.ign,
+                      comparePlayer2.scrimsKills, comparePlayer2.tourneyKills, comparePlayer2.openRoomKills,
+                      comparePlayer2.scrimsMatches, comparePlayer2.tourneyMatches, comparePlayer2.openRoomMatches
+                    ) : null;
+                    const kd1 = stats1.totalMatches > 0 ? parseFloat((stats1.totalKills / stats1.totalMatches).toFixed(2)) : (comparePlayer1.kd || 1.5);
+                    const kd2 = stats2 ? (stats2.totalMatches > 0 ? parseFloat((stats2.totalKills / stats2.totalMatches).toFixed(2)) : (comparePlayer2.kd || 1.5)) : 1.5;
+
                     return (
                       <div className="space-y-2">
                         <div className="grid grid-cols-3 items-center gap-4 text-center text-xs">
-                          <div className="text-left font-bebas text-lg text-gold">{k1} kills</div>
+                          <div className="text-left font-bebas text-lg text-gold">{kd1} K/D</div>
+                          <div className="text-neutral-500 font-mono text-[9px] uppercase font-bold tracking-wider">KILL / DEATH RATIO</div>
+                          <div className="text-right font-bebas text-lg text-cyan-400">{comparePlayer2 ? `${kd2} K/D` : 'N/A'}</div>
+                        </div>
+                        {comparePlayer2 && (
+                          <div className="h-1.5 bg-neutral-950 rounded-full overflow-hidden flex">
+                            <div 
+                              className="bg-gold h-full transition-all duration-500" 
+                              style={{ 
+                                width: `${
+                                  (kd1 / (kd1 + kd2 || 1)) * 100
+                                }%` 
+                              }} 
+                            />
+                            <div 
+                              className="bg-cyan-400 h-full transition-all duration-500" 
+                              style={{ 
+                                width: `${
+                                  (kd2 / (kd1 + kd2 || 1)) * 100
+                                }%` 
+                              }} 
+                            />
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+
+                  {/* Kills & Matches comparison bar */}
+                  {(() => {
+                    const stats1 = getPlayerLiveStats(
+                      comparePlayer1.ign,
+                      comparePlayer1.scrimsKills, comparePlayer1.tourneyKills, comparePlayer1.openRoomKills,
+                      comparePlayer1.scrimsMatches, comparePlayer1.tourneyMatches, comparePlayer1.openRoomMatches
+                    );
+                    const stats2 = comparePlayer2 ? getPlayerLiveStats(
+                      comparePlayer2.ign,
+                      comparePlayer2.scrimsKills, comparePlayer2.tourneyKills, comparePlayer2.openRoomKills,
+                      comparePlayer2.scrimsMatches, comparePlayer2.tourneyMatches, comparePlayer2.openRoomMatches
+                    ) : null;
+                    const k1 = stats1.totalKills;
+                    const k2 = stats2 ? stats2.totalKills : 0;
+                    return (
+                      <div className="space-y-2">
+                        <div className="grid grid-cols-3 items-center gap-4 text-center text-xs">
+                          <div className="text-left font-bebas text-lg text-gold">{k1} kills ({stats1.totalMatches}M)</div>
                           <div className="text-neutral-500 font-mono text-[9px] uppercase font-bold tracking-wider">TOTAL HISTORIC KILLS</div>
-                          <div className="text-right font-bebas text-lg text-cyan-400">{comparePlayer2 ? `${k2} kills` : 'N/A'}</div>
+                          <div className="text-right font-bebas text-lg text-cyan-400">{comparePlayer2 ? `${k2} kills (${stats2?.totalMatches || 0}M)` : 'N/A'}</div>
                         </div>
                         {comparePlayer2 && k1 + k2 > 0 && (
                           <div className="h-1.5 bg-neutral-950 rounded-full overflow-hidden flex">
@@ -1619,13 +1719,42 @@ const RosterPage = ({ onToast }: { onToast: (t: string, m: string) => void }) =>
                           } group relative overflow-hidden cursor-pointer`}
                         >
                     <div className="absolute top-0 left-[-100%] w-full h-full bg-gradient-to-r from-transparent via-gold/5 to-transparent skew-x-12 group-hover:left-[100%] transition-all duration-500" />
-                    {p.status && p.status !== 'Active' && (
-                      <div className={`absolute top-2 right-2 text-[8px] px-2 py-0.5 font-black uppercase tracking-widest z-10 ${
-                        p.status === 'On Trial' ? 'bg-blue-600/80 text-white' : 'bg-neutral-800 text-white/40'
-                      }`}>
-                        {p.status}
-                      </div>
-                    )}
+                    <div className="absolute top-2 right-2 flex items-center gap-1.5 z-10">
+                      {(() => {
+                        const { totalKills, totalMatches } = getPlayerLiveStats(
+                          p.ign,
+                          p.scrimsKills, p.tourneyKills, p.openRoomKills,
+                          p.scrimsMatches, p.tourneyMatches, p.openRoomMatches
+                        );
+                        const liveKd = totalMatches > 0 ? parseFloat((totalKills / totalMatches).toFixed(2)) : (parseFloat(p.kd) || 1.5);
+                        let aiBadge = { label: 'TACTICAL READY', bg: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' };
+                        if (p.status === 'Inactive') {
+                          aiBadge = { label: 'INACTIVE', bg: 'bg-neutral-800 text-neutral-400 border-white/10' };
+                        } else if (p.status === 'On Trial') {
+                          aiBadge = { label: 'PROBATION EVAL', bg: 'bg-blue-500/20 text-blue-400 border-blue-500/30' };
+                        } else if (liveKd >= 4.0 || totalKills >= 150) {
+                          aiBadge = { label: 'APEX FRAGGER', bg: 'bg-amber-500/20 text-amber-300 border-amber-500/40 shadow-xs' };
+                        } else if (liveKd >= 2.5) {
+                          aiBadge = { label: 'SHARPSHOOTER', bg: 'bg-purple-500/20 text-purple-300 border-purple-500/40' };
+                        } else if (totalMatches > 20) {
+                          aiBadge = { label: 'COMBAT VETERAN', bg: 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40' };
+                        }
+
+                        return (
+                          <span className={`text-[7px] px-1.5 py-0.5 rounded-xs font-mono font-bold uppercase tracking-wider border flex items-center gap-1 ${aiBadge.bg}`}>
+                            <span className="w-1 h-1 rounded-full bg-current animate-pulse" />
+                            {aiBadge.label}
+                          </span>
+                        );
+                      })()}
+                      {p.status && p.status !== 'Active' && (
+                        <span className={`text-[7px] px-1.5 py-0.5 rounded-xs font-black uppercase tracking-widest ${
+                          p.status === 'On Trial' ? 'bg-blue-600/80 text-white' : 'bg-neutral-800 text-white/40'
+                        }`}>
+                          {p.status}
+                        </span>
+                      )}
+                    </div>
 
                     <div className={`${selectedPlayer?.id === p.id ? 'flex flex-col md:flex-row gap-8 items-start mb-8' : ''}`}>
                       <div className={`${selectedPlayer?.id === p.id ? 'flex-shrink-0' : ''}`}>
@@ -1660,8 +1789,9 @@ const RosterPage = ({ onToast }: { onToast: (t: string, m: string) => void }) =>
                             p.scrimsKills, p.tourneyKills, p.openRoomKills,
                             p.scrimsMatches, p.tourneyMatches, p.openRoomMatches
                           );
+                          const liveKd = totalMatches > 0 ? (totalKills / totalMatches).toFixed(2) : (p.kd || '0.00');
                           return (
-                            <div className="mt-3 pt-3 border-t border-white/5 flex items-center justify-center gap-4 text-[10px] font-mono text-neutral-400">
+                            <div className="mt-3 pt-3 border-t border-white/5 flex items-center justify-center gap-3 text-[10px] font-mono text-neutral-400">
                               <div>
                                 <span className="text-neutral-500 text-[8px] block uppercase tracking-wider font-bold">Matches</span>
                                 <span className="font-orbitron font-bold text-white text-xs">{totalMatches}</span>
@@ -1670,6 +1800,11 @@ const RosterPage = ({ onToast }: { onToast: (t: string, m: string) => void }) =>
                               <div>
                                 <span className="text-neutral-500 text-[8px] block uppercase tracking-wider font-bold">Kills</span>
                                 <span className="font-orbitron font-bold text-gold text-xs">{totalKills}</span>
+                              </div>
+                              <div className="w-px h-5 bg-white/10" />
+                              <div>
+                                <span className="text-neutral-500 text-[8px] block uppercase tracking-wider font-bold">K/D</span>
+                                <span className="font-orbitron font-bold text-cyan-400 text-xs">{liveKd}</span>
                               </div>
                             </div>
                           );
@@ -1912,32 +2047,40 @@ const RosterPage = ({ onToast }: { onToast: (t: string, m: string) => void }) =>
                             </a>
                           )}
                         </div>
-                        <div className="mt-4 pt-4 border-t border-white/5 grid grid-cols-3 gap-2">
-                          <div className="bg-white/5 border border-white/5 p-2 rounded-sm text-center">
-                            <span className="block font-orbitron font-black text-gold text-sm leading-none mb-1">{p.kd}</span>
-                            <span className="text-[7px] text-neutral-500 uppercase font-bold tracking-widest">K/D</span>
-                          </div>
-                          <div className="bg-white/5 border border-white/5 p-2 rounded-sm text-center">
-                            <span className="block font-orbitron font-black text-gold text-sm leading-none mb-1">{p.matches}</span>
-                            <span className="text-[7px] text-neutral-500 uppercase font-bold tracking-widest">Matches</span>
-                          </div>
-                          <div className="bg-gold/10 border border-gold/20 p-2 rounded-sm text-center">
-                            <span className="block font-orbitron font-black text-gold text-sm leading-none mb-1">{(p.kills || 0).toLocaleString()}</span>
-                            <span className="text-[7px] text-gold uppercase font-bold tracking-widest">Kills</span>
-                          </div>
-                          <div className="bg-gold border border-gold p-2 rounded-sm text-center">
-                            <span className="block font-orbitron font-black text-black text-sm leading-none mb-1">
-                              {(() => {
-                                const k = parseInt(p.kills || '0');
-                                const m = parseInt(p.matches || '0');
-                                const s = p.status || 'Active';
-                                let score = (k * 100) + (m * 10);
-                                if (s === 'Inactive') score -= 5000;
-                                return Math.max(0, score).toLocaleString();
-                              })()}
-                            </span>
-                            <span className="text-[7px] text-black font-bold uppercase tracking-widest">Points</span>
-                          </div>
+                        <div className="mt-4 pt-4 border-t border-white/5 grid grid-cols-4 gap-2">
+                          {(() => {
+                            const { totalKills, totalMatches } = getPlayerLiveStats(
+                              p.ign,
+                              p.scrimsKills, p.tourneyKills, p.openRoomKills,
+                              p.scrimsMatches, p.tourneyMatches, p.openRoomMatches
+                            );
+                            const calculatedKd = totalMatches > 0 ? (totalKills / totalMatches).toFixed(2) : (p.kd || '0.00');
+                            const s = p.status || 'Active';
+                            let score = (totalKills * 100) + (totalMatches * 10);
+                            if (s === 'Inactive') score -= 5000;
+                            const displayScore = Math.max(0, score).toLocaleString();
+
+                            return (
+                              <>
+                                <div className="bg-white/5 border border-white/5 p-2 rounded-sm text-center">
+                                  <span className="block font-orbitron font-black text-gold text-sm leading-none mb-1">{calculatedKd}</span>
+                                  <span className="text-[7px] text-neutral-500 uppercase font-bold tracking-widest">K/D</span>
+                                </div>
+                                <div className="bg-white/5 border border-white/5 p-2 rounded-sm text-center">
+                                  <span className="block font-orbitron font-black text-gold text-sm leading-none mb-1">{totalMatches.toLocaleString()}</span>
+                                  <span className="text-[7px] text-neutral-500 uppercase font-bold tracking-widest">Matches</span>
+                                </div>
+                                <div className="bg-gold/10 border border-gold/20 p-2 rounded-sm text-center">
+                                  <span className="block font-orbitron font-black text-gold text-sm leading-none mb-1">{totalKills.toLocaleString()}</span>
+                                  <span className="text-[7px] text-gold uppercase font-bold tracking-widest">Kills</span>
+                                </div>
+                                <div className="bg-gold border border-gold p-2 rounded-sm text-center">
+                                  <span className="block font-orbitron font-black text-black text-sm leading-none mb-1">{displayScore}</span>
+                                  <span className="text-[7px] text-black font-bold uppercase tracking-widest">Points</span>
+                                </div>
+                              </>
+                            );
+                          })()}
                         </div>
                       </>
                     )}
@@ -3191,26 +3334,23 @@ const TournamentPage = ({ onToast, user, onNavigate }: { onToast: (t: string, m:
 
   const fetchTournaments = async () => {
     try {
-      const snap = await getDocs(query(collection(db, 'tournaments'), orderBy('createdAt', 'desc')));
-      const loadedTournaments = await Promise.all(snap.docs.map(async (dDoc) => {
+      let snap;
+      try {
+        snap = await getDocs(query(collection(db, 'tournaments'), orderBy('createdAt', 'desc')));
+      } catch {
+        snap = await getDocs(collection(db, 'tournaments'));
+      }
+      const loadedTournaments = snap.docs.map((dDoc) => {
         const data = dDoc.data();
-        let exactSlotsCount = data.slots || 0;
-        try {
-          if (auth.currentUser) {
-            const regsSnap = await getDocs(collection(db, 'tournaments', dDoc.id, 'registrations'));
-            exactSlotsCount = regsSnap.size;
-            if (data.slots !== exactSlotsCount) {
-              await updateDoc(doc(db, 'tournaments', dDoc.id), { slots: exactSlotsCount });
-            }
-          }
-        } catch (e) {
-          // Fallback silently for unauthenticated or non-admin users
-        }
-        return { id: dDoc.id, ...data, slots: exactSlotsCount };
-      }));
+        return { id: dDoc.id, ...data, slots: data.slots || 0 };
+      }).sort((a: any, b: any) => {
+        const tA = a.createdAt?.toMillis?.() || (a.createdAt ? new Date(a.createdAt).getTime() : 0);
+        const tB = b.createdAt?.toMillis?.() || (b.createdAt ? new Date(b.createdAt).getTime() : 0);
+        return tB - tA;
+      });
       setDbTournaments(loadedTournaments);
     } catch (error) {
-      console.error(error);
+      console.error("Error fetching tournaments:", error);
     } finally {
       setLoading(false);
     }
@@ -3821,6 +3961,19 @@ const AdminDashboard = ({ onToast, adminRole, user, orgStatsProp }: { onToast: (
   const [editingStaffId, setEditingStaffId] = useState<string | null>(null);
   const [syncingSheets, setSyncingSheets] = useState(false);
   const [googleSheetsUrl, setGoogleSheetsUrl] = useState(localStorage.getItem('bts_google_sheets_url') || '');
+  const [allScreenshotStats, setAllScreenshotStats] = useState<any[]>([]);
+
+  useEffect(() => {
+    let unsubStats: () => void;
+    try {
+      unsubStats = onSnapshot(collection(db, 'player_screenshot_stats'), (snap) => {
+        setAllScreenshotStats(snap.docs.map(doc => doc.data()));
+      }, (err) => console.error("Admin stats subscription error:", err));
+    } catch (err) {
+      console.error(err);
+    }
+    return () => unsubStats?.();
+  }, []);
 
   const exportRosterToCSV = () => {
     if (!squad || squad.length === 0) {
@@ -3839,19 +3992,23 @@ const AdminDashboard = ({ onToast, adminRole, user, orgStatsProp }: { onToast: (
     const csvRows = [
       headers.join(','),
       ...squad.map(p => {
-        const divName = divisions.find(d => d.id === p.div)?.name || p.div || 'General';
-        const totalKills = (p.scrimsKills || 0) + (p.tourneyKills || 0) + (p.openRoomKills || 0);
-        const totalMatches = (p.scrimsMatches || 0) + (p.tourneyMatches || 0) + (p.openRoomMatches || 0);
+        const divName = divisions.find(d => d.id === p.div || d.key === p.div)?.name || p.div || 'General';
+        const liveStats = calculatePlayerLiveStats(
+          p.ign,
+          allScreenshotStats,
+          p.scrimsKills, p.tourneyKills, p.openRoomKills,
+          p.scrimsMatches, p.tourneyMatches, p.openRoomMatches
+        );
 
         return [
           `"${timestamp}"`,
           `"${p.name || ''}"`,
           `"${p.ign || ''}"`,
           `"${divName}"`,
-          p.scrimsMatches || 0,
-          p.scrimsKills || 0,
-          p.tourneyMatches || 0,
-          p.tourneyKills || 0,
+          liveStats.scrimsMatches,
+          liveStats.scrimsKills,
+          liveStats.tourneyMatches,
+          liveStats.tourneyKills,
           p.erangelKills || 0,
           p.erangelMatches || 0,
           p.miramarKills || 0,
@@ -3860,8 +4017,8 @@ const AdminDashboard = ({ onToast, adminRole, user, orgStatsProp }: { onToast: (
           p.sanhokMatches || 0,
           p.vikendiKills || 0,
           p.vikendiMatches || 0,
-          totalKills,
-          totalMatches,
+          liveStats.totalKills,
+          liveStats.totalMatches,
           `"${p.status || 'Active'}"`
         ].join(',');
       })
@@ -3896,20 +4053,24 @@ const AdminDashboard = ({ onToast, adminRole, user, orgStatsProp }: { onToast: (
     const csvContent = [
       headers.join(','),
       ...squad.map(p => {
-        const divName = divisions.find(d => d.id === p.div)?.name || p.div || 'General';
-        const totalKills = (p.scrimsKills || 0) + (p.tourneyKills || 0) + (p.openRoomKills || 0);
-        const totalMatches = (p.scrimsMatches || 0) + (p.tourneyMatches || 0) + (p.openRoomMatches || 0);
-        const kd = totalMatches > 0 ? (totalKills / totalMatches).toFixed(2) : '0.00';
+        const divName = divisions.find(d => d.id === p.div || d.key === p.div)?.name || p.div || 'General';
+        const liveStats = calculatePlayerLiveStats(
+          p.ign,
+          allScreenshotStats,
+          p.scrimsKills, p.tourneyKills, p.openRoomKills,
+          p.scrimsMatches, p.tourneyMatches, p.openRoomMatches
+        );
+        const kd = liveStats.kd.toFixed(2);
         
         return [
           `"${p.name || ''}"`,
           `"${p.ign || ''}"`,
           `"${divName}"`,
           kd,
-          totalMatches,
-          totalKills,
-          p.scrimsKills || 0,
-          p.tourneyKills || 0,
+          liveStats.totalMatches,
+          liveStats.totalKills,
+          liveStats.scrimsKills,
+          liveStats.tourneyKills,
           p.erangelKills || 0,
           p.miramarKills || 0,
           p.sanhokKills || 0,
@@ -3980,26 +4141,35 @@ const AdminDashboard = ({ onToast, adminRole, user, orgStatsProp }: { onToast: (
       // Prepare the payload with detailed mapping as requested
       const payload = {
         timestamp: new Date().toLocaleString(),
-        roster: activeRoster.map(p => ({
-          name: ((p as any).name || (p as any).playerName || (p.ign && p.ign.includes('•') ? p.ign.split('•')[1] : p.ign) || 'Unknown').trim(), 
-          ign: (p.ign || 'N/A').trim(),
-          division: divMap[p.div] || p.div || 'General',
-          scrimsMatches: p.scrimsMatches || 0,
-          scrimsKills: p.scrimsKills || 0,
-          tourneyMatches: p.tourneyMatches || 0,
-          tourneyKills: p.tourneyKills || 0,
-          erangelKills: p.erangelKills || 0,
-          erangelMatches: p.erangelMatches || 0,
-          miramarKills: p.miramarKills || 0,
-          miramarMatches: p.miramarMatches || 0,
-          sanhokKills: p.sanhokKills || 0,
-          sanhokMatches: p.sanhokMatches || 0,
-          vikendiKills: p.vikendiKills || 0,
-          vikendiMatches: p.vikendiMatches || 0,
-          totalKills: (p.scrimsKills || 0) + (p.tourneyKills || 0) + (p.openRoomKills || 0),
-          totalMatches: (p.scrimsMatches || 0) + (p.tourneyMatches || 0) + (p.openRoomMatches || 0),
-          status: p.status || 'Active'
-        }))
+        roster: activeRoster.map(p => {
+          const liveStats = calculatePlayerLiveStats(
+            p.ign,
+            allScreenshotStats,
+            p.scrimsKills, p.tourneyKills, p.openRoomKills,
+            p.scrimsMatches, p.tourneyMatches, p.openRoomMatches
+          );
+          return {
+            name: ((p as any).name || (p as any).playerName || (p.ign && p.ign.includes('•') ? p.ign.split('•')[1] : p.ign) || 'Unknown').trim(), 
+            ign: (p.ign || 'N/A').trim(),
+            division: divMap[p.div] || p.div || 'General',
+            scrimsMatches: liveStats.scrimsMatches,
+            scrimsKills: liveStats.scrimsKills,
+            tourneyMatches: liveStats.tourneyMatches,
+            tourneyKills: liveStats.tourneyKills,
+            erangelKills: p.erangelKills || 0,
+            erangelMatches: p.erangelMatches || 0,
+            miramarKills: p.miramarKills || 0,
+            miramarMatches: p.miramarMatches || 0,
+            sanhokKills: p.sanhokKills || 0,
+            sanhokMatches: p.sanhokMatches || 0,
+            vikendiKills: p.vikendiKills || 0,
+            vikendiMatches: p.vikendiMatches || 0,
+            totalKills: liveStats.totalKills,
+            totalMatches: liveStats.totalMatches,
+            kd: liveStats.kd.toFixed(2),
+            status: p.status || 'Active'
+          };
+        })
       };
 
       // Push to Google
@@ -4437,15 +4607,33 @@ const AdminDashboard = ({ onToast, adminRole, user, orgStatsProp }: { onToast: (
         const snap = await getDocsWithTimeout(q);
         setApplications(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
       } else if (activeTab === 'tournaments') {
-        const q = query(collection(db, 'tournaments'), orderBy('createdAt', 'desc'));
-        const snap = await getDocsWithTimeout(q);
-        setTournaments(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        let snap;
+        try {
+          snap = await getDocsWithTimeout(query(collection(db, 'tournaments'), orderBy('createdAt', 'desc')));
+        } catch {
+          snap = await getDocsWithTimeout(collection(db, 'tournaments'));
+        }
+        const sorted = snap.docs.map(doc => ({ id: doc.id, ...doc.data() })).sort((a: any, b: any) => {
+          const tA = a.createdAt?.toMillis?.() || (a.createdAt ? new Date(a.createdAt).getTime() : 0);
+          const tB = b.createdAt?.toMillis?.() || (b.createdAt ? new Date(b.createdAt).getTime() : 0);
+          return tB - tA;
+        });
+        setTournaments(sorted);
       } else if (activeTab === 'results') {
-        const q = query(collection(db, 'results'), orderBy('createdAt', 'desc'));
-        const snap = await getDocsWithTimeout(q);
+        let snap;
+        try {
+          snap = await getDocsWithTimeout(query(collection(db, 'results'), orderBy('createdAt', 'desc')));
+        } catch {
+          snap = await getDocsWithTimeout(collection(db, 'results'));
+        }
         setResults(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
         
-        const tSnap = await getDocsWithTimeout(query(collection(db, 'tournaments'), orderBy('name')));
+        let tSnap;
+        try {
+          tSnap = await getDocsWithTimeout(query(collection(db, 'tournaments'), orderBy('name')));
+        } catch {
+          tSnap = await getDocsWithTimeout(collection(db, 'tournaments'));
+        }
         setTournaments(tSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
       } else if (activeTab === 'highlights') {
         const q = query(collection(db, 'highlights'), orderBy('createdAt', 'desc'));
@@ -5861,12 +6049,33 @@ const AdminDashboard = ({ onToast, adminRole, user, orgStatsProp }: { onToast: (
               </div>
             )}
 
-            {activeTab === 'squad' && (
+            {activeTab === 'squad' && (() => {
+              const totalSquadLiveKills = squad.reduce((acc, p) => {
+                const s = calculatePlayerLiveStats(p.ign, allScreenshotStats, p.scrimsKills, p.tourneyKills, p.openRoomKills, p.scrimsMatches, p.tourneyMatches, p.openRoomMatches);
+                return acc + s.totalKills;
+              }, 0);
+
+              const totalSquadLiveMatches = squad.reduce((acc, p) => {
+                const s = calculatePlayerLiveStats(p.ign, allScreenshotStats, p.scrimsKills, p.tourneyKills, p.openRoomKills, p.scrimsMatches, p.tourneyMatches, p.openRoomMatches);
+                return acc + s.totalMatches;
+              }, 0);
+
+              const avgSquadKD = totalSquadLiveMatches > 0 ? (totalSquadLiveKills / totalSquadLiveMatches).toFixed(2) : '0.00';
+
+              return (
               <div className="space-y-8">
-                <div className="flex flex-col md:flex-row gap-4 bg-white/5 p-6 border border-gold/10">
+                {/* Control Plan Header & Summary */}
+                <div className="flex flex-col md:flex-row gap-4 bg-white/5 p-6 border border-gold/10 justify-between items-start md:items-center">
                    <div className="flex-1">
-                      <h4 className="font-bebas text-2xl text-gold tracking-widest">Digital Roster</h4>
-                      <p className="text-neutral-500 text-[10px] uppercase font-bold tracking-widest">{squad.length} Active Operatives</p>
+                      <div className="flex items-center gap-3 mb-1">
+                        <h4 className="font-bebas text-2xl text-gold tracking-widest">Digital Pro Roster</h4>
+                        <span className="text-[8px] font-black uppercase px-2 py-0.5 bg-gold/10 text-gold border border-gold/30 rounded-xs">
+                          Live Metrics Engine
+                        </span>
+                      </div>
+                      <p className="text-neutral-400 text-[10px] uppercase font-bold tracking-widest">
+                        {squad.length} Active Operatives • Scrims, Tourneys & OCR Match Screenshots Aggregated
+                      </p>
                    </div>
                    
                    <div className="flex flex-wrap items-center gap-3">
@@ -5892,6 +6101,33 @@ const AdminDashboard = ({ onToast, adminRole, user, orgStatsProp }: { onToast: (
                         {showCreateForm ? 'Abort' : 'Recruit New'}
                       </button>
                    </div>
+                </div>
+
+                {/* Aggregate KPI Grid */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                  <div className="bg-neutral-900/90 border border-white/5 p-4 relative overflow-hidden">
+                    <div className="text-[8px] font-black text-neutral-500 uppercase tracking-widest mb-1">Total Operatives</div>
+                    <div className="font-orbitron text-2xl text-white font-bold tracking-wider">{squad.length}</div>
+                    <div className="text-[9px] text-neutral-400 uppercase font-mono mt-0.5">Enlisted Fighters</div>
+                  </div>
+
+                  <div className="bg-neutral-900/90 border border-amber-500/20 p-4 relative overflow-hidden">
+                    <div className="text-[8px] font-black text-amber-400/80 uppercase tracking-widest mb-1">Squad Live Kills</div>
+                    <div className="font-orbitron text-2xl text-gold font-bold tracking-wider">{totalSquadLiveKills.toLocaleString()}</div>
+                    <div className="text-[9px] text-neutral-400 uppercase font-mono mt-0.5">Aggregated Elimin.</div>
+                  </div>
+
+                  <div className="bg-neutral-900/90 border border-cyan-500/20 p-4 relative overflow-hidden">
+                    <div className="text-[8px] font-black text-cyan-400/80 uppercase tracking-widest mb-1">Squad Live Matches</div>
+                    <div className="font-orbitron text-2xl text-cyan-400 font-bold tracking-wider">{totalSquadLiveMatches.toLocaleString()}</div>
+                    <div className="text-[9px] text-neutral-400 uppercase font-mono mt-0.5">Deployments (GP)</div>
+                  </div>
+
+                  <div className="bg-neutral-900/90 border border-purple-500/20 p-4 relative overflow-hidden">
+                    <div className="text-[8px] font-black text-purple-400/80 uppercase tracking-widest mb-1">Average Squad K/D</div>
+                    <div className="font-orbitron text-2xl text-purple-300 font-bold tracking-wider">{avgSquadKD}</div>
+                    <div className="text-[9px] text-neutral-400 uppercase font-mono mt-0.5">Org Kill Efficiency</div>
+                  </div>
                 </div>
 
                 {showCreateForm && (
@@ -6147,13 +6383,16 @@ const AdminDashboard = ({ onToast, adminRole, user, orgStatsProp }: { onToast: (
                      </div>
                   <div className="bg-gold/5 p-4 border border-gold/20 flex justify-between items-center">
                        <div>
-                          <span className="text-[8px] font-black text-neutral-500 uppercase tracking-widest block">Calculated Performance</span>
+                          <span className="text-[8px] font-black text-neutral-500 uppercase tracking-widest block">Calculated Performance Preview</span>
                           <div className="flex gap-4 mt-1">
                              <div className="text-white font-orbitron text-xl">
-                                KD: <span className="text-gold">{((parseInt(squadForm.scrimsKills) + parseInt(squadForm.tourneyKills) + parseInt(squadForm.openRoomKills)) / (Math.max(1, parseInt(squadForm.scrimsMatches) + parseInt(squadForm.tourneyMatches) + parseInt(squadForm.openRoomMatches)))).toFixed(2)}</span>
+                                KD: <span className="text-gold">{((parseInt(squadForm.scrimsKills || '0') + parseInt(squadForm.tourneyKills || '0') + parseInt(squadForm.openRoomKills || '0')) / (Math.max(1, parseInt(squadForm.scrimsMatches || '0') + parseInt(squadForm.tourneyMatches || '0') + parseInt(squadForm.openRoomMatches || '0')))).toFixed(2)}</span>
                              </div>
                              <div className="text-white font-orbitron text-xl">
-                                GP: <span className="text-gold">{parseInt(squadForm.scrimsMatches) + parseInt(squadForm.tourneyMatches) + parseInt(squadForm.openRoomMatches)}</span>
+                                Total Kills: <span className="text-gold">{parseInt(squadForm.scrimsKills || '0') + parseInt(squadForm.tourneyKills || '0') + parseInt(squadForm.openRoomKills || '0')}</span>
+                             </div>
+                             <div className="text-white font-orbitron text-xl">
+                                GP: <span className="text-gold">{parseInt(squadForm.scrimsMatches || '0') + parseInt(squadForm.tourneyMatches || '0') + parseInt(squadForm.openRoomMatches || '0')}</span>
                              </div>
                           </div>
                        </div>
@@ -6165,50 +6404,133 @@ const AdminDashboard = ({ onToast, adminRole, user, orgStatsProp }: { onToast: (
                 )}
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                   {squad.map(player => (
-                      <div key={player.id} className="bg-neutral-900 border border-white/5 p-6 group hover:border-gold/20 transition-all flex justify-between items-start relative overflow-hidden">
-                         {player.status === 'Inactive' && (
-                           <div className="absolute top-0 right-0 bg-red-500/80 text-[8px] font-black text-white px-2 py-1 uppercase tracking-widest">Inactive</div>
-                         )}
-                         <div className="flex-1">
-                            <div className="text-[8px] font-black text-gold uppercase tracking-widest mb-1">
-                               {divisions.find(d => d.key === player.div)?.name || player.div}
+                   {squad.map(player => {
+                      const liveStats = calculatePlayerLiveStats(
+                        player.ign,
+                        allScreenshotStats,
+                        player.scrimsKills,
+                        player.tourneyKills,
+                        player.openRoomKills,
+                        player.scrimsMatches,
+                        player.tourneyMatches,
+                        player.openRoomMatches
+                      );
+
+                      const tacticalBadge = getPlayerTacticalBadge(player.status, liveStats.kd, liveStats.totalKills, liveStats.totalMatches);
+                      const divData = divisions.find(d => d.key === player.div || d.id === player.div);
+
+                      return (
+                      <div key={player.id} className="bg-neutral-900 border border-white/10 p-5 group hover:border-gold/30 transition-all flex flex-col justify-between relative overflow-hidden rounded-xs shadow-lg">
+                         {/* Header status bar */}
+                         <div className="flex items-center justify-between gap-2 mb-3">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                               <span className="text-[8px] font-black text-gold uppercase tracking-widest px-2 py-0.5 bg-gold/10 border border-gold/20 rounded-xs">
+                                  {divData?.name || player.div || 'General'}
+                               </span>
+                               {player.squadNumber && (
+                                  <span className="text-[8px] font-orbitron text-neutral-400 font-bold px-1.5 py-0.5 bg-white/5 border border-white/10">
+                                     #{player.squadNumber}
+                                  </span>
+                               )}
                             </div>
-                            <h5 className="font-bebas text-2xl text-white tracking-widest">{player.ign}</h5>
-                            <div className="text-[10px] text-neutral-500 font-bold uppercase tracking-widest">{player.role}</div>
                             
-                            <div className="grid grid-cols-3 gap-2 mt-4">
-                               <div className="bg-white/5 p-2 border border-white/5">
-                                  <div className="text-[7px] text-neutral-600 font-black uppercase">Scrims</div>
-                                  <div className="text-[10px] text-white font-mono">{player.scrimsKills || 0}/{player.scrimsMatches || 0}</div>
-                               </div>
-                               <div className="bg-white/5 p-2 border border-white/5">
-                                  <div className="text-[7px] text-neutral-600 font-black uppercase">Tourney</div>
-                                  <div className="text-[10px] text-white font-mono">{player.tourneyKills || 0}/{player.tourneyMatches || 0}</div>
-                               </div>
-                               <div className="bg-white/5 p-2 border border-white/5">
-                                  <div className="text-[7px] text-neutral-600 font-black uppercase">Open</div>
-                                  <div className="text-[10px] text-white font-mono">{player.openRoomKills || 0}/{player.openRoomMatches || 0}</div>
-                               </div>
-                            </div>
-                            <div className="mt-3 flex gap-4">
-                               <div className="text-[10px] font-black text-gold uppercase tracking-widest">KD: {player.kd}</div>
-                               <div className="text-[10px] font-black text-neutral-400 uppercase tracking-widest">GP: {player.matches}</div>
+                            <span className={`text-[8px] font-black uppercase tracking-wider px-2 py-0.5 border ${tacticalBadge.bg} rounded-xs`}>
+                               {tacticalBadge.label}
+                            </span>
+                         </div>
+
+                         {/* Player Identifiers */}
+                         <div className="mb-4">
+                            <h5 className="font-bebas text-2xl text-white tracking-widest group-hover:text-gold transition-colors flex items-center justify-between">
+                               <span>{player.ign}</span>
+                               {player.uid && (
+                                  <span className="text-[9px] font-mono font-normal text-neutral-500 tracking-normal">UID: {player.uid}</span>
+                               )}
+                            </h5>
+                            <div className="text-[10px] text-neutral-400 font-bold uppercase tracking-widest flex items-center gap-2">
+                               <span>{player.role || 'Operative'}</span>
+                               <span>•</span>
+                               <span>{player.game || 'BGMI'}</span>
                             </div>
                          </div>
-                         <div className="flex gap-2">
-                            <button onClick={() => startEditingSquad(player)} className="p-2 text-neutral-600 hover:text-gold transition-colors">
-                               <Settings size={14} />
-                            </button>
-                            <button onClick={() => deleteSquadMember(player.id)} className="p-2 text-neutral-600 hover:text-neon-red transition-colors">
-                               <Trash2 size={14} />
-                            </button>
+                         
+                         {/* Breakdown Grid */}
+                         <div className="grid grid-cols-3 gap-2 mb-4">
+                            <div className="bg-black/40 p-2.5 border border-white/5 rounded-xs">
+                               <div className="text-[7px] text-neutral-500 font-black uppercase tracking-wider">Scrims</div>
+                               <div className="text-[11px] text-white font-mono font-bold mt-0.5">
+                                  {liveStats.scrimsKills}K / {liveStats.scrimsMatches}M
+                               </div>
+                            </div>
+                            <div className="bg-black/40 p-2.5 border border-white/5 rounded-xs">
+                               <div className="text-[7px] text-neutral-500 font-black uppercase tracking-wider">Tourney</div>
+                               <div className="text-[11px] text-amber-300 font-mono font-bold mt-0.5">
+                                  {liveStats.tourneyKills}K / {liveStats.tourneyMatches}M
+                               </div>
+                            </div>
+                            <div className="bg-black/40 p-2.5 border border-white/5 rounded-xs">
+                               <div className="text-[7px] text-neutral-500 font-black uppercase tracking-wider">Open Room</div>
+                               <div className="text-[11px] text-cyan-300 font-mono font-bold mt-0.5">
+                                  {liveStats.openRoomKills}K / {liveStats.openRoomMatches}M
+                               </div>
+                            </div>
+                         </div>
+
+                         {/* Aggregated Totals Row */}
+                         <div className="pt-3 border-t border-white/5 flex items-center justify-between">
+                            <div className="flex items-center gap-4">
+                               <div>
+                                  <div className="text-[7px] font-black text-neutral-500 uppercase tracking-widest">Total Kills</div>
+                                  <div className="text-sm font-orbitron font-bold text-gold flex items-center gap-1">
+                                     <span>{liveStats.totalKills.toLocaleString()}</span>
+                                     {liveStats.extraTotalKills > 0 && (
+                                        <span className="text-[7px] font-mono text-emerald-400 bg-emerald-500/10 px-1 rounded-xs">
+                                           +{liveStats.extraTotalKills}
+                                        </span>
+                                     )}
+                                  </div>
+                               </div>
+
+                               <div>
+                                  <div className="text-[7px] font-black text-neutral-500 uppercase tracking-widest">Deployments</div>
+                                  <div className="text-sm font-orbitron font-bold text-white">
+                                     {liveStats.totalMatches.toLocaleString()}
+                                  </div>
+                               </div>
+
+                               <div>
+                                  <div className="text-[7px] font-black text-neutral-500 uppercase tracking-widest">Live K/D</div>
+                                  <div className="text-sm font-orbitron font-bold text-amber-400">
+                                     {liveStats.kd.toFixed(2)}
+                                  </div>
+                               </div>
+                            </div>
+
+                            {/* Action Buttons */}
+                            <div className="flex gap-1">
+                               <button 
+                                 onClick={() => startEditingSquad(player)} 
+                                 title="Configure Operative"
+                                 className="p-2 text-neutral-400 hover:text-gold hover:bg-gold/10 rounded-xs transition-colors"
+                               >
+                                  <Settings size={14} />
+                               </button>
+                               <button 
+                                 onClick={() => deleteSquadMember(player.id)} 
+                                 title="Terminate from Roster"
+                                 className="p-2 text-neutral-400 hover:text-red-400 hover:bg-red-500/10 rounded-xs transition-colors"
+                               >
+                                  <Trash2 size={14} />
+                               </button>
+                            </div>
                          </div>
                       </div>
-                   ))}
+                      );
+                   })}
                 </div>
               </div>
-            )}
+              );
+            })()}
 
             {activeTab === 'achievements' && (
               <div className="space-y-8">
@@ -10154,45 +10476,68 @@ export default function App() {
   }, [currentPage, selectedTournament]);
 
   useEffect(() => {
-    if (user) {
-      const checkAdmin = async () => {
-        try {
-          // Fetch user role from users collection
-          const userDoc = await getDoc(doc(db, 'users', user.uid));
-          if (userDoc.exists()) {
-            setUserRole(userDoc.data().role || 'User');
-          } else {
-            setUserRole('User');
-          }
-
-          const adminDoc = await getDoc(doc(db, 'admins', user.uid));
-          if (adminDoc.exists()) {
-            setIsAdmin(true);
-            setAdminRole(adminDoc.data().role || 'Super Admin');
-          } else if (user.email === 'argaming2020119@gmail.com') {
-            setIsAdmin(true);
-            setAdminRole('Super Admin');
-          } else {
-            setIsAdmin(false);
-            setAdminRole(null);
-          }
-        } catch (e) {
-          console.error("Admin check failed:", e);
-          if (user.email === 'argaming2020119@gmail.com') {
-            setIsAdmin(true);
-            setAdminRole('Super Admin');
-          } else {
-            setIsAdmin(false);
-            setAdminRole(null);
-          }
-        }
-      };
-      checkAdmin();
-    } else {
+    if (!user) {
       setIsAdmin(false);
       setAdminRole(null);
       setUserRole('User');
+      return;
     }
+
+    // Immediately grant Super Admin clearance to primary owner email
+    if (user.email === 'argaming2020119@gmail.com') {
+      setIsAdmin(true);
+      setAdminRole('Super Admin');
+      setUserRole('Leader');
+    }
+
+    // Real-time listener for user profile role
+    let unsubUser: () => void = () => {};
+    try {
+      unsubUser = onSnapshot(doc(db, 'users', user.uid), (docSnap) => {
+        if (docSnap.exists()) {
+          const role = docSnap.data().role;
+          if (role) setUserRole(role);
+        }
+      }, (err) => {
+        console.warn("[User Sync] Offline or loading fallback:", err.message);
+      });
+    } catch (err: any) {
+      console.warn("[User Sync] Initialization notice:", err?.message);
+    }
+
+    // Real-time listener for admin role
+    let unsubAdmin: () => void = () => {};
+    try {
+      unsubAdmin = onSnapshot(doc(db, 'admins', user.uid), (docSnap) => {
+        if (docSnap.exists()) {
+          setIsAdmin(true);
+          setAdminRole(docSnap.data().role || 'Super Admin');
+        } else if (user.email === 'argaming2020119@gmail.com') {
+          setIsAdmin(true);
+          setAdminRole('Super Admin');
+        } else {
+          setIsAdmin(false);
+          setAdminRole(null);
+        }
+      }, (err) => {
+        console.warn("[Admin Sync] Offline or loading fallback:", err.message);
+        if (user.email === 'argaming2020119@gmail.com') {
+          setIsAdmin(true);
+          setAdminRole('Super Admin');
+        }
+      });
+    } catch (err: any) {
+      console.warn("[Admin Sync] Initialization notice:", err?.message);
+      if (user.email === 'argaming2020119@gmail.com') {
+        setIsAdmin(true);
+        setAdminRole('Super Admin');
+      }
+    }
+
+    return () => {
+      unsubUser();
+      unsubAdmin();
+    };
   }, [user]);
 
   useEffect(() => {
@@ -10200,21 +10545,22 @@ export default function App() {
       setIsAppSquadMember(false);
       return;
     }
-    const checkSquadStatus = async () => {
-      try {
-        const squadQuery = query(collection(db, 'squad'), where('uid', '==', user.uid));
-        const squadSnapshot = await getDocs(squadQuery);
-        if (!squadSnapshot.empty) {
-          setIsAppSquadMember(true);
-        } else {
-          setIsAppSquadMember(false);
-        }
-      } catch (err) {
-        console.error("Error checking squad status in DB:", err);
-        setIsAppSquadMember(false);
-      }
+
+    let unsubSquad: () => void = () => {};
+    try {
+      const squadQuery = query(collection(db, 'squad'), where('uid', '==', user.uid));
+      unsubSquad = onSnapshot(squadQuery, (snap) => {
+        setIsAppSquadMember(!snap.empty);
+      }, (err) => {
+        console.warn("[Squad Status Sync] Offline fallback:", err.message);
+      });
+    } catch (err: any) {
+      console.warn("[Squad Status Sync] Init notice:", err?.message);
+    }
+
+    return () => {
+      unsubSquad();
     };
-    checkSquadStatus();
   }, [user]);
 
   const showToast = (title: string, msg: string) => {

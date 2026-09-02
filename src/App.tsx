@@ -56,14 +56,19 @@ import {
   Cpu,
   Database,
   RefreshCw,
-  Sparkles
+  Sparkles,
+  Sliders,
+  Megaphone,
+  Radio,
+  Power
 } from 'lucide-react';
-import { Page, Tournament, Player, RankingPlayer } from './types';
+import { Page, Tournament, Player, RankingPlayer, WebsiteModules, DEFAULT_WEBSITE_MODULES } from './types';
 import { PLAYERS, DIVISIONS, TOURNAMENTS, GAME_DATA } from './constants';
 import { auth, googleProvider, db, handleFirestoreError as firebaseErrorHandler } from './lib/firebase';
 import { ScreenshotStatsPage } from './ScreenshotStatsPage';
 import { TournamentBracket } from './components/TournamentBracket';
 import { MatchCenter } from './components/MatchCenter';
+import { WebsiteModulesManager } from './components/WebsiteModulesManager';
 import { signInWithPopup, signOut, onAuthStateChanged, User, signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
 import { 
   collection, 
@@ -201,7 +206,7 @@ const SectionHeader = ({ tag, title, sub, goldSpan, className = "text-center mb-
 
 // --- Pages ---
 
-const Home = ({ onNavigate, onToast, userRole, isAdmin, user, branding }: { onNavigate: (p: Page, d?: any) => void, onToast: (t: string, m: string) => void, userRole?: string, isAdmin?: boolean, user?: User | null, branding: any }) => {
+const Home = ({ onNavigate, onToast, userRole, isAdmin, user, branding, modules }: { onNavigate: (p: Page, d?: any) => void, onToast: (t: string, m: string) => void, userRole?: string, isAdmin?: boolean, user?: User | null, branding: any, modules?: WebsiteModules }) => {
   const [dbTournaments, setDbTournaments] = useState<any[]>([]);
   const [dbHighlights, setDbHighlights] = useState<any[]>([]);
   const [liveConfig, setLiveConfig] = useState<{ isLive: boolean, videoId: string, title: string } | null>(null);
@@ -415,7 +420,7 @@ const Home = ({ onNavigate, onToast, userRole, isAdmin, user, branding }: { onNa
       </div>
 
       <AnimatePresence>
-        {liveConfig?.isLive && liveConfig.videoId && (
+        {modules?.liveStream !== false && liveConfig?.isLive && liveConfig.videoId && (
           <motion.div 
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
@@ -627,83 +632,91 @@ const Home = ({ onNavigate, onToast, userRole, isAdmin, user, branding }: { onNa
       </section>
 
       {/* Latest Events & Highlights */}
-      <section className="py-24 bg-black px-4">
-        <div className="container mx-auto grid grid-cols-1 lg:grid-cols-[1fr_400px] gap-12">
-          <div>
-            <div className="flex items-center justify-between mb-8">
-              <h3 className="font-bebas text-4xl text-white tracking-widest">Active <span className="text-gold">Tournaments</span></h3>
-              <button onClick={() => onNavigate('tournament')} className="text-[10px] font-black text-neutral-500 uppercase tracking-widest hover:text-gold transition-colors flex items-center gap-2">
-                View All <Plus size={12} />
-              </button>
-            </div>
-            <div className="space-y-4">
-              {displayTournaments.map((t, i) => (
-                <div key={i} className="group bg-neutral-900/50 border border-white/5 p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 hover:border-gold/20 transition-all cursor-pointer" onClick={() => onNavigate('tournament-details', t)}>
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 bg-gold/10 border border-gold/20 rounded-md flex items-center justify-center font-orbitron font-black text-gold">
-                      {t.name?.charAt(0) || 'T'}
-                    </div>
-                    <div>
-                      <div className="text-[9px] font-black text-gold uppercase tracking-[0.2em]">{t.game}</div>
-                      <h4 className="text-xl font-bebas text-white tracking-wide">{t.name}</h4>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-8 w-full md:w-auto justify-between md:justify-end border-t md:border-t-0 border-white/5 pt-4 md:pt-0">
-                    <div className="text-right">
-                       <span className="text-[9px] font-bold text-neutral-500 block uppercase tracking-widest">Prize Pool</span>
-                       <span className="text-lg font-orbitron font-bold text-white leading-none">{t.prize || t.pool}</span>
-                    </div>
-                    <div className={`px-4 py-1 text-[9px] font-black uppercase tracking-widest border ${t.status === 'open' ? 'border-green-500 text-green-500 bg-green-500/5' : 'border-neutral-700 text-neutral-500 bg-neutral-800'}`}>
-                      {t.status}
-                    </div>
-                  </div>
+      {(modules?.tournaments !== false || modules?.highlights !== false) && (
+        <section className="py-24 bg-black px-4">
+          <div className={`container mx-auto ${modules?.tournaments !== false && modules?.highlights !== false ? 'grid grid-cols-1 lg:grid-cols-[1fr_400px] gap-12' : 'max-w-5xl'}`}>
+            {modules?.tournaments !== false && (
+              <div>
+                <div className="flex items-center justify-between mb-8">
+                  <h3 className="font-bebas text-4xl text-white tracking-widest">Active <span className="text-gold">Tournaments</span></h3>
+                  <button onClick={() => onNavigate('tournament')} className="text-[10px] font-black text-neutral-500 uppercase tracking-widest hover:text-gold transition-colors flex items-center gap-2">
+                    View All <Plus size={12} />
+                  </button>
                 </div>
-              ))}
-            </div>
-          </div>
-
-          <div>
-             <div className="flex items-center justify-between mb-8">
-               <h3 className="font-bebas text-4xl text-white tracking-widest">Latest <span className="text-gold">Intel</span></h3>
-             </div>
-             <div className="space-y-6">
-                {displayHighlights.slice(0, 3).map((h, i) => (
-                  <div key={i} className="group cursor-pointer">
-                    <div className="aspect-video bg-neutral-900 border border-white/5 overflow-hidden relative mb-3 group-hover:border-gold/30 transition-all">
-                      <img src={h.thumb} className="w-full h-full object-cover opacity-50 group-hover:opacity-80 group-hover:scale-105 transition-all duration-700" alt={h.title} />
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        <div className="w-12 h-12 rounded-full bg-black/50 border border-white/20 flex items-center justify-center backdrop-blur-sm group-hover:bg-gold group-hover:text-black transition-all">
-                          <Play size={20} fill="currentColor" />
+                <div className="space-y-4">
+                  {displayTournaments.map((t, i) => (
+                    <div key={i} className="group bg-neutral-900/50 border border-white/5 p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 hover:border-gold/20 transition-all cursor-pointer" onClick={() => onNavigate('tournament-details', t)}>
+                      <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 bg-gold/10 border border-gold/20 rounded-md flex items-center justify-center font-orbitron font-black text-gold">
+                          {t.name?.charAt(0) || 'T'}
+                        </div>
+                        <div>
+                          <div className="text-[9px] font-black text-gold uppercase tracking-[0.2em]">{t.game}</div>
+                          <h4 className="text-xl font-bebas text-white tracking-wide">{t.name}</h4>
                         </div>
                       </div>
-                      <div className="absolute bottom-2 left-2">
-                        <span className="bg-black/80 text-gold text-[7px] font-black px-2 py-0.5 tracking-widest uppercase">{h.tag}</span>
+                      <div className="flex items-center gap-8 w-full md:w-auto justify-between md:justify-end border-t md:border-t-0 border-white/5 pt-4 md:pt-0">
+                        <div className="text-right">
+                           <span className="text-[9px] font-bold text-neutral-500 block uppercase tracking-widest">Prize Pool</span>
+                           <span className="text-lg font-orbitron font-bold text-white leading-none">{t.prize || t.pool}</span>
+                        </div>
+                        <div className={`px-4 py-1 text-[9px] font-black uppercase tracking-widest border ${t.status === 'open' ? 'border-green-500 text-green-500 bg-green-500/5' : 'border-neutral-700 text-neutral-500 bg-neutral-800'}`}>
+                          {t.status}
+                        </div>
                       </div>
                     </div>
-                    <h5 className="font-bebas text-xl text-white tracking-widest group-hover:text-gold transition-colors line-clamp-1">{h.title}</h5>
-                    <p className="text-[9px] text-neutral-600 font-bold uppercase tracking-widest mt-1">{h.date}</p>
-                  </div>
-                ))}
-             </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {modules?.highlights !== false && (
+              <div>
+                 <div className="flex items-center justify-between mb-8">
+                   <h3 className="font-bebas text-4xl text-white tracking-widest">Latest <span className="text-gold">Intel</span></h3>
+                 </div>
+                 <div className="space-y-6">
+                    {displayHighlights.slice(0, 3).map((h, i) => (
+                      <div key={i} className="group cursor-pointer">
+                        <div className="aspect-video bg-neutral-900 border border-white/5 overflow-hidden relative mb-3 group-hover:border-gold/30 transition-all">
+                          <img src={h.thumb} className="w-full h-full object-cover opacity-50 group-hover:opacity-80 group-hover:scale-105 transition-all duration-700" alt={h.title} />
+                          <div className="absolute inset-0 flex items-center justify-center">
+                            <div className="w-12 h-12 rounded-full bg-black/50 border border-white/20 flex items-center justify-center backdrop-blur-sm group-hover:bg-gold group-hover:text-black transition-all">
+                              <Play size={20} fill="currentColor" />
+                            </div>
+                          </div>
+                          <div className="absolute bottom-2 left-2">
+                            <span className="bg-black/80 text-gold text-[7px] font-black px-2 py-0.5 tracking-widest uppercase">{h.tag}</span>
+                          </div>
+                        </div>
+                        <h5 className="font-bebas text-xl text-white tracking-widest group-hover:text-gold transition-colors line-clamp-1">{h.title}</h5>
+                        <p className="text-[9px] text-neutral-600 font-bold uppercase tracking-widest mt-1">{h.date}</p>
+                      </div>
+                    ))}
+                 </div>
+              </div>
+            )}
           </div>
-        </div>
-      </section>
+        </section>
+      )}
 
       {/* Integrated Live Match Center */}
-      <section className="py-24 bg-neutral-950 px-4 relative">
-        <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-gold/30 to-transparent" />
-        <div className="container mx-auto">
-          <SectionHeader 
-            tag="Live Coverage" 
-            title="Match" 
-            goldSpan="Center" 
-            sub="Real-time match scoring, simulation telemetry, and active intelligence chat feed."
-          />
-          <div className="mt-12 bg-neutral-900/20 border border-white/5 p-6 md:p-8 rounded-sm">
-            <MatchCenter onToast={onToast} />
+      {modules?.matchCenter !== false && (
+        <section className="py-24 bg-neutral-950 px-4 relative">
+          <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-gold/30 to-transparent" />
+          <div className="container mx-auto">
+            <SectionHeader 
+              tag="Live Coverage" 
+              title="Match" 
+              goldSpan="Center" 
+              sub="Real-time match scoring, simulation telemetry, and active intelligence chat feed."
+            />
+            <div className="mt-12 bg-neutral-900/20 border border-white/5 p-6 md:p-8 rounded-sm">
+              <MatchCenter onToast={onToast} />
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
+      )}
 
     </div>
   );
@@ -2599,13 +2612,21 @@ const SignInPage = ({ onToast, user, isAdmin, onNavigate }: { onToast: (t: strin
 
       onToast('Login Success', `Welcome back, ${user.displayName || 'Operative'}!`);
     } catch (error: any) {
-      console.error("Google Login Error:", error);
-      if (error.code === 'auth/popup-blocked') {
+      const isDismissed = error?.code === 'auth/popup-closed-by-user' || 
+                          error?.code === 'auth/cancelled-popup-request' ||
+                          error?.code === 'auth/user-cancelled' ||
+                          error?.message?.includes('popup-closed-by-user') ||
+                          error?.message?.includes('cancelled-popup-request');
+      
+      if (isDismissed) {
+        // User deliberately closed or cancelled the popup - expected behavior, no error logging
+        onToast('Sign-In Cancelled', 'The Google sign-in window was closed.');
+      } else if (error?.code === 'auth/popup-blocked' || error?.message?.includes('popup-blocked')) {
+        console.warn("Google Login Popup Blocked:", error);
         onToast('Popup Blocked', 'Please enable popups for this site to sign in with Google.');
-      } else if (error.code === 'auth/popup-closed-by-user' || error.code === 'auth/cancelled-popup-request') {
-        onToast('Login Cancelled', 'The Google sign-in window was closed.');
       } else {
-        onToast('Login Error', error.message || 'Failed to sign in with Google');
+        console.error("Google Login Error:", error);
+        onToast('Login Error', error?.message || 'Failed to sign in with Google');
       }
     }
   };
@@ -4045,6 +4066,7 @@ const AdminDashboard = ({ onToast, adminRole, user, orgStatsProp }: { onToast: (
     date: '',
     imageUrl: '',
     discordLink: '',
+    discordWebhookUrl: '',
     instagramLink: '',
     youtubeLink: '',
     description: '',
@@ -4103,6 +4125,7 @@ const AdminDashboard = ({ onToast, adminRole, user, orgStatsProp }: { onToast: (
   const [matchDraft, setMatchDraft] = useState({ map: 'Erangel', result: 'WIN', kills: '0', rank: '1', date: 'Just now' });
 
   const availableTabs = [
+    { id: 'modules', label: 'Website Modules', icon: <Sliders size={16} />, roles: ['Super Admin', 'Tournament Manager', 'Content Moderator'] },
     { id: 'tournaments', label: 'Tournaments', icon: <Trophy size={16} />, roles: ['Super Admin', 'Tournament Manager'] },
     { id: 'registrations', label: 'Registrations', icon: <FileSpreadsheet size={16} />, roles: ['Super Admin', 'Tournament Manager'] },
     { id: 'results', label: 'Results', icon: <Award size={16} />, roles: ['Super Admin', 'Tournament Manager'] },
@@ -4156,6 +4179,7 @@ const AdminDashboard = ({ onToast, adminRole, user, orgStatsProp }: { onToast: (
       date: t.date || '',
       imageUrl: t.imageUrl || '',
       discordLink: t.discordLink || '',
+      discordWebhookUrl: t.discordWebhookUrl || '',
       instagramLink: t.instagramLink || '',
       youtubeLink: t.youtubeLink || '',
       description: t.description || '',
@@ -4287,6 +4311,7 @@ const AdminDashboard = ({ onToast, adminRole, user, orgStatsProp }: { onToast: (
       date: '',
       imageUrl: '',
       discordLink: '',
+      discordWebhookUrl: '',
       instagramLink: '',
       youtubeLink: '',
       description: '',
@@ -4362,6 +4387,34 @@ const AdminDashboard = ({ onToast, adminRole, user, orgStatsProp }: { onToast: (
   };
 
   const [liveConfig, setLiveConfig] = useState<{ isLive: boolean, videoId: string, title: string }>({ isLive: false, videoId: '', title: '' });
+  
+  const [testingWebhook, setTestingWebhook] = useState(false);
+  const handleTestDiscordWebhook = async (webhookUrl: string) => {
+    if (!webhookUrl) {
+      onToast('Error', 'Please enter a Discord Webhook URL first.');
+      return;
+    }
+    setTestingWebhook(true);
+    try {
+      const response = await fetch('/api/discord-notify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ webhookUrl, test: true })
+      });
+      const data = await response.json();
+      if (response.ok && data.success) {
+        onToast('Success ✅', 'Test connection verified! Webhook alert dispatched to Discord.');
+      } else {
+        throw new Error(data.error || 'Failed to dispatch test notification');
+      }
+    } catch (err: any) {
+      console.error(err);
+      onToast('Webhook Verification Error', err.message || 'Verification signal failed to connect to Discord.');
+    } finally {
+      setTestingWebhook(false);
+    }
+  };
+
   const [brandingConfig, setBrandingConfig] = useState({ 
     orgName: 'BTS eSports', 
     tagLine: 'Rise Together', 
@@ -4414,9 +4467,14 @@ const AdminDashboard = ({ onToast, adminRole, user, orgStatsProp }: { onToast: (
         const dSnap = await getDocsWithTimeout(query(collection(db, 'divisions'), orderBy('name')));
         setDivisions(dSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
       } else if (activeTab === 'divisions') {
-        const q = query(collection(db, 'divisions'), orderBy('createdAt', 'desc'));
-        const snap = await getDocsWithTimeout(q);
-        setDivisions(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        try {
+          const q = query(collection(db, 'divisions'), orderBy('createdAt', 'desc'));
+          const snap = await getDocsWithTimeout(q);
+          setDivisions(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        } catch {
+          const snap = await getDocsWithTimeout(collection(db, 'divisions'));
+          setDivisions(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        }
       } else if (activeTab === 'staff') {
         const q = query(collection(db, 'staff'), orderBy('order', 'asc'));
         const snap = await getDocsWithTimeout(q);
@@ -4441,7 +4499,17 @@ const AdminDashboard = ({ onToast, adminRole, user, orgStatsProp }: { onToast: (
       } else if (activeTab === 'settings' || activeTab === 'info' || activeTab === 'oversight') {
         const sSnap = await getDocWithTimeout(doc(db, 'site_config', 'social'));
         if (sSnap.exists()) {
-          setSocialLinksForm(sSnap.data() as any);
+          setSocialLinksForm({
+            youtube: '',
+            instagram: '',
+            discord: '',
+            whatsapp: '',
+            facebook: '',
+            twitter: '',
+            telegram: '',
+            discordWebhookUrl: '',
+            ...sSnap.data()
+          });
         }
         const oSnap = await getDocWithTimeout(doc(db, 'site_config', 'org_stats'));
         if (oSnap.exists()) {
@@ -4450,6 +4518,15 @@ const AdminDashboard = ({ onToast, adminRole, user, orgStatsProp }: { onToast: (
         const bSnap = await getDocWithTimeout(doc(db, 'site_config', 'branding'));
         if (bSnap.exists()) {
           setBrandingConfig(bSnap.data() as any);
+        }
+        const mSnap = await getDocWithTimeout(doc(db, 'site_config', 'website_modules'));
+        if (mSnap.exists()) {
+          setWebsiteModulesForm(prev => ({ ...prev, ...mSnap.data() }));
+        }
+      } else if (activeTab === 'modules') {
+        const mSnap = await getDocWithTimeout(doc(db, 'site_config', 'website_modules'));
+        if (mSnap.exists()) {
+          setWebsiteModulesForm(prev => ({ ...prev, ...mSnap.data() }));
         }
       } else if (activeTab === 'registrations') {
         const tSnap = await getDocsWithTimeout(query(collection(db, 'tournaments'), orderBy('createdAt', 'desc')));
@@ -4480,10 +4557,32 @@ const AdminDashboard = ({ onToast, adminRole, user, orgStatsProp }: { onToast: (
     whatsapp: '',
     facebook: '',
     twitter: '',
-    telegram: ''
+    telegram: '',
+    discordWebhookUrl: ''
   });
   const [orgStatsForm, setOrgStatsForm] = useState({ divisionCount: orgStatsProp?.divisionCount || 5, proRosterCount: orgStatsProp?.proRosterCount || 40, foundedYear: orgStatsProp?.foundedYear || 2019 });
+  const [websiteModulesForm, setWebsiteModulesForm] = useState<WebsiteModules>(DEFAULT_WEBSITE_MODULES);
   const [isSavingSettings, setIsSavingSettings] = useState(false);
+  const [isSavingModules, setIsSavingModules] = useState(false);
+
+  const saveWebsiteModules = async (newModules?: WebsiteModules) => {
+    setIsSavingModules(true);
+    try {
+      const dataToSave = newModules || websiteModulesForm;
+      await setDoc(doc(db, 'site_config', 'website_modules'), { 
+        ...dataToSave, 
+        updatedAt: serverTimestamp() 
+      }, { merge: true });
+      if (newModules) {
+        setWebsiteModulesForm(newModules);
+      }
+      onToast('Modules Synced ✅', 'Website module set saved and applied across the whole website.');
+    } catch (error) {
+      reportFirestoreError(error, 'write', 'site_config/website_modules', onToast);
+    } finally {
+      setIsSavingModules(false);
+    }
+  };
 
   const saveSettings = async () => {
     setIsSavingSettings(true);
@@ -4763,11 +4862,14 @@ const AdminDashboard = ({ onToast, adminRole, user, orgStatsProp }: { onToast: (
   const deleteDivision = async (id: string) => {
     if (!confirm('Permanently decommission this division? All linked players will remain but their division assignment may break.')) return;
     try {
+      setDivisions(prev => prev.filter(d => d.id !== id));
       await deleteDoc(doc(db, 'divisions', id));
       onToast('Decommissioned', 'Division removed from organization.');
       fetchData();
     } catch (error) {
+      console.error("Delete Division Error:", error);
       reportFirestoreError(error, 'delete', `divisions/${id}`, onToast);
+      fetchData();
     }
   };
 
@@ -7234,7 +7336,16 @@ function doPost(e) {
                         <button onClick={() => startEditingDivision(d)} className="flex-1 flex items-center justify-center gap-2 bg-white/5 text-neutral-400 border border-white/10 py-2 text-[9px] font-black uppercase tracking-widest hover:text-gold hover:border-gold/30 transition-all">
                            <Settings size={12} /> Configure
                         </button>
-                        <button onClick={() => deleteDivision(d.id)} className="p-2 border border-white/10 text-neutral-600 hover:text-red-500 transition-colors">
+                        <button 
+                          type="button"
+                          title="Decommission Division"
+                          aria-label="Decommission Division"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            deleteDivision(d.id);
+                          }} 
+                          className="p-2 border border-white/10 text-neutral-500 hover:text-red-500 hover:border-red-500/40 hover:bg-red-500/10 transition-all rounded-[2px]"
+                        >
                            <Trash2 size={14} />
                         </button>
                       </div>
@@ -7403,6 +7514,26 @@ function doPost(e) {
                           type="url" 
                           placeholder="https://discord.gg/..."
                           className="w-full bg-black/40 border border-white/10 p-3 text-xs text-blue-400 focus:border-blue-500 outline-none font-mono" 
+                        />
+                      </div>
+                      <div className="space-y-1 md:col-span-2 lg:col-span-3">
+                        <label className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest italic opacity-60 flex justify-between items-center">
+                          <span>Discord Webhook URL (For Automatic Registrations Alert)</span>
+                          <button
+                            type="button"
+                            onClick={() => handleTestDiscordWebhook(tournamentForm.discordWebhookUrl)}
+                            disabled={testingWebhook}
+                            className="text-[8px] bg-neutral-800 hover:bg-neutral-700 text-gold font-black uppercase tracking-widest px-2.5 py-1 border border-gold/20 rounded-sm disabled:opacity-50 transition-colors"
+                          >
+                            {testingWebhook ? 'TESTING...' : 'TEST WEBHOOK'}
+                          </button>
+                        </label>
+                        <input 
+                          value={tournamentForm.discordWebhookUrl}
+                          onChange={(e) => setTournamentForm({...tournamentForm, discordWebhookUrl: e.target.value})}
+                          type="url" 
+                          placeholder="https://discord.com/api/webhooks/..."
+                          className="w-full bg-black/40 border border-white/10 p-3 text-xs text-neutral-400 focus:border-gold outline-none font-mono" 
                         />
                       </div>
                       <div className="space-y-1 md:col-span-2 lg:col-span-3">
@@ -8114,6 +8245,15 @@ function doPost(e) {
               </div>
             )}
 
+            {activeTab === 'modules' && (
+              <WebsiteModulesManager
+                modules={websiteModulesForm}
+                onSave={saveWebsiteModules}
+                isSaving={isSavingModules}
+                onToast={onToast}
+              />
+            )}
+
             {activeTab === 'settings' && (
               <div className="space-y-8">
                 <SectionHeader 
@@ -8202,6 +8342,28 @@ function doPost(e) {
                             className="w-full bg-black/40 border border-white/10 p-3 text-[10px] text-white focus:border-gold outline-none"
                           />
                         </div>
+                      </div>
+
+                      <div className="border-t border-white/5 pt-4 space-y-2">
+                        <label className="text-[9px] font-black text-neutral-500 uppercase tracking-widest flex items-center justify-between">
+                          <span className="flex items-center gap-2">
+                            <MessageSquare size={12} className="text-gold" /> Global Fallback Discord Webhook URL
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleTestDiscordWebhook(socialLinksForm.discordWebhookUrl)}
+                            disabled={testingWebhook}
+                            className="text-[8px] bg-neutral-800 hover:bg-neutral-700 text-gold font-black uppercase tracking-widest px-2 py-0.5 border border-gold/15 rounded-sm disabled:opacity-50 transition-colors"
+                          >
+                            {testingWebhook ? 'TESTING...' : 'TEST WEBHOOK'}
+                          </button>
+                        </label>
+                        <input 
+                          value={socialLinksForm.discordWebhookUrl}
+                          onChange={(e) => setSocialLinksForm({...socialLinksForm, discordWebhookUrl: e.target.value})}
+                          placeholder="https://discord.com/api/webhooks/..."
+                          className="w-full bg-black/40 border border-white/10 p-3 text-[10px] text-neutral-400 focus:border-gold outline-none font-mono"
+                        />
                       </div>
                    </div>
 
@@ -8874,7 +9036,7 @@ const RankingPage = () => {
   );
 };
 
-const RegistrationPage = ({ tournament, user, onNavigate, onToast }: { tournament: Tournament, user: User, onNavigate: (p: Page, d?: any) => void, onToast: (t: string, m: string) => void }) => {
+const RegistrationPage = ({ tournament, user, onNavigate, onToast, socialLinks, modules }: { tournament: Tournament, user: User, onNavigate: (p: Page, d?: any) => void, onToast: (t: string, m: string) => void, socialLinks: any, modules?: WebsiteModules }) => {
   const [loading, setLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [formData, setFormData] = useState({
@@ -8897,6 +9059,10 @@ const RegistrationPage = ({ tournament, user, onNavigate, onToast }: { tournamen
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (modules?.registrations === false) {
+      onToast('Registrations Paused', 'Squad registrations are temporarily paused by tournament administration.');
+      return;
+    }
     if (!formData.agree) {
       onToast('Error', 'You must agree to the tournament rules.');
       return;
@@ -8962,6 +9128,32 @@ const RegistrationPage = ({ tournament, user, onNavigate, onToast }: { tournamen
       await updateDoc(doc(db, 'tournaments', tournament.id), {
         slots: actualRegistrationsCount + 1
       });
+
+      // 6. Asynchronously trigger Discord Webhook Notification if configured (non-blocking)
+      const activeWebhookUrl = tournament.discordWebhookUrl || socialLinks.discordWebhookUrl;
+      if (activeWebhookUrl) {
+        fetch('/api/discord-notify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            webhookUrl: activeWebhookUrl,
+            tournamentName: tournament.name,
+            teamName: formData.teamName,
+            leaderName: formData.playerName,
+            ign: formData.ign,
+            playerId: formData.playerId,
+            discordId: formData.discordId,
+            contact: formData.contact,
+            squad: formData.squad
+          })
+        }).then(res => {
+          if (!res.ok) {
+            console.warn('Discord webhook dispatch responded with non-200 status');
+          }
+        }).catch(err => {
+          console.error('Failed to notify Discord webhook:', err);
+        });
+      }
 
       setIsSuccess(true);
       onToast('Success ✅', 'Registration Successful!');
@@ -9846,10 +10038,36 @@ const TournamentDetailsPage = ({ tournament, user, onNavigate, onToast, isAdmin 
   );
 };
 
+const ModuleOfflineNotice = ({ title, onHome }: { title: string, onHome: () => void }) => (
+  <div className="pt-32 pb-48 container mx-auto px-4 max-w-xl text-center">
+    <div className="bg-neutral-900/60 border border-gold/20 p-10 md:p-14 rounded-sm space-y-6 shadow-2xl">
+      <div className="w-16 h-16 rounded-full bg-gold/10 border border-gold/30 flex items-center justify-center text-gold mx-auto">
+        <Sliders size={28} />
+      </div>
+      <div className="space-y-2">
+        <div className="text-[10px] font-black text-neutral-500 uppercase tracking-[0.25em]">Tactical Module Standby</div>
+        <h2 className="font-bebas text-4xl md:text-5xl text-white tracking-widest leading-tight">
+          {title} <span className="text-gold">Offline</span>
+        </h2>
+      </div>
+      <p className="text-neutral-400 text-xs md:text-sm leading-relaxed max-w-md mx-auto">
+        This sector has been temporarily paused by command administration. Please return to the main dashboard or check back soon.
+      </p>
+      <button
+        onClick={onHome}
+        className="px-8 py-3.5 bg-gold text-black font-black text-xs uppercase tracking-widest hover:bg-white transition-all shadow-[0_0_20px_rgba(255,215,0,0.2)] rounded-[2px]"
+      >
+        Return to Home Command
+      </button>
+    </div>
+  </div>
+);
+
 export default function App() {
   const [currentPage, setCurrentPage] = useState<Page>('home');
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [selectedTournament, setSelectedTournament] = useState<Tournament | null>(null);
+  const [websiteModules, setWebsiteModules] = useState<WebsiteModules>(DEFAULT_WEBSITE_MODULES);
   const [orgStats, setOrgStats] = useState({ divisionCount: 5, proRosterCount: 40, foundedYear: 2019 });
   const [branding, setBranding] = useState({ 
     orgName: 'BTS eSports', 
@@ -9859,7 +10077,7 @@ export default function App() {
     primaryColor: '#FFD700',
     accentColor: '#FF2244'
   });
-  const [socialLinks, setSocialLinks] = useState({ youtube: '', instagram: '', discord: '', whatsapp: '', facebook: '', twitter: '', telegram: '' });
+  const [socialLinks, setSocialLinks] = useState({ youtube: '', instagram: '', discord: '', whatsapp: '', facebook: '', twitter: '', telegram: '', discordWebhookUrl: '' });
   const [staff, setStaff] = useState<any[]>([]);
 
   const navigate = (page: Page, data?: any) => {
@@ -9885,6 +10103,14 @@ export default function App() {
       if (u && currentPage === 'signin' && selectedTournament) {
         setCurrentPage('registration');
       }
+    });
+
+    const unsubModules = onSnapshot(doc(db, 'site_config', 'website_modules'), (docSnap) => {
+      if (docSnap.exists()) {
+        setWebsiteModules(prev => ({ ...prev, ...docSnap.data() }));
+      }
+    }, (error) => {
+      reportFirestoreError(error, 'get', 'site_config/website_modules', (t, m) => console.warn(t, m));
     });
     
     const unsubStats = onSnapshot(doc(db, 'site_config', 'org_stats'), (docSnap) => {
@@ -9919,6 +10145,7 @@ export default function App() {
 
     return () => {
       unsubscribe();
+      unsubModules();
       unsubStats();
       unsubBranding();
       unsubStaff();
@@ -9997,30 +10224,30 @@ export default function App() {
 
   const navLinks = useMemo(() => {
     const full = [
-      { id: 'home', label: 'Home' },
-      { id: 'tournament', label: 'Events' },
-      { id: 'results', label: 'Results' },
-      { id: 'ranking', label: 'Ranks' },
-      { id: 'roster', label: 'Squad' },
-      { id: 'recruitment', label: 'Join' },
-      { id: 'management', label: 'Org' },
-      { id: 'about', label: 'Info' },
-      { id: 'screenshot-stats', label: 'AI Stats' },
+      { id: 'home', label: 'Home', visible: true },
+      { id: 'tournament', label: 'Events', visible: websiteModules.tournaments },
+      { id: 'results', label: 'Results', visible: websiteModules.results },
+      { id: 'ranking', label: 'Ranks', visible: websiteModules.ranking },
+      { id: 'roster', label: 'Squad', visible: websiteModules.roster },
+      { id: 'recruitment', label: 'Join', visible: websiteModules.recruitment },
+      { id: 'management', label: 'Org', visible: websiteModules.management },
+      { id: 'about', label: 'Info', visible: websiteModules.about },
+      { id: 'screenshot-stats', label: 'AI Stats', visible: websiteModules.aiStats },
     ];
 
     const isSquadMember = isAppSquadMember || userRole === 'Squad Member' || userRole === 'Leader' || userRole === 'Staff' || (user && user.email === 'argaming2020119@gmail.com');
-    const canAccessAIStats = isAdmin || isSquadMember;
+    const canAccessAIStats = (isAdmin || isSquadMember) && websiteModules.aiStats;
 
-    let base = full;
+    let base = full.filter(item => item.visible);
     if (!canAccessAIStats) {
-      base = full.filter(link => link.id !== 'screenshot-stats');
+      base = base.filter(link => link.id !== 'screenshot-stats');
     }
 
     if (isAdmin) {
       base.push({ id: 'admin', label: 'Deployment Portal' } as any);
     }
     return base;
-  }, [isAdmin, userRole, user, isAppSquadMember]);
+  }, [isAdmin, userRole, user, isAppSquadMember, websiteModules]);
 
   useEffect(() => {
     const isSquadMember = isAppSquadMember || userRole === 'Squad Member' || userRole === 'Leader' || userRole === 'Staff' || (user && user.email === 'argaming2020119@gmail.com');
@@ -10142,45 +10369,194 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* Main Content Area */}
-      <main>
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={currentPage}
-            initial={{ opacity: 0, x: 10 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -10 }}
-            transition={{ duration: 0.3 }}
-          >
-            {currentPage === 'home' && <Home onNavigate={navigate} onToast={showToast} userRole={userRole} isAdmin={isAdmin} user={user} branding={branding} />}
-            {currentPage === 'tournament' && (
-              <TournamentPage onToast={showToast} user={user} onNavigate={navigate} />
+      {/* Global Announcement Marquee Bar */}
+      {websiteModules.announcementBanner && websiteModules.announcementText && (
+        <div className="fixed top-16 left-0 w-full z-[990] bg-neutral-950/95 border-b border-gold/30 backdrop-blur-md px-4 py-2 text-xs flex items-center justify-between shadow-lg">
+          <div className="container mx-auto flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3 overflow-hidden">
+              <span className="px-2 py-0.5 bg-gold text-black font-black text-[9px] uppercase tracking-widest rounded-[2px] shrink-0 flex items-center gap-1">
+                <Zap size={10} fill="currentColor" /> INTEL
+              </span>
+              <span className="text-neutral-200 font-bold tracking-wide truncate text-xs">
+                {websiteModules.announcementText}
+              </span>
+            </div>
+
+            {websiteModules.announcementLink && (
+              <button
+                onClick={() => setCurrentPage(websiteModules.announcementLink as Page)}
+                className="shrink-0 px-3 py-1 bg-gold/10 hover:bg-gold hover:text-black border border-gold/40 text-gold text-[10px] font-black uppercase tracking-widest transition-all rounded-[2px] flex items-center gap-1"
+              >
+                <span>EXPLORE</span>
+                <ArrowRight size={12} />
+              </button>
             )}
-            {currentPage === 'registration' && selectedTournament && user && (
-              <RegistrationPage tournament={selectedTournament} user={user} onNavigate={navigate} onToast={showToast} />
-            )}
-            {currentPage === 'tournament-details' && selectedTournament && (
-              <TournamentDetailsPage tournament={selectedTournament} user={user} onNavigate={navigate} onToast={showToast} isAdmin={isAdmin} />
-            )}
-            {currentPage === 'results' && <ResultsPage onToast={showToast} isAdmin={isAdmin} />}
-            {currentPage === 'ranking' && <RankingPage onToast={showToast} />}
-            {currentPage === 'roster' && <RosterPage onToast={showToast} />}
-            {currentPage === 'recruitment' && <RecruitmentPage onToast={showToast} user={user} />}
-            {currentPage === 'management' && <ManagementPage isAdmin={isAdmin} onNavigate={setCurrentPage} />}
-            {currentPage === 'about' && <AboutPage stats={orgStats} branding={branding} staff={staff} />}
-            {currentPage === 'screenshot-stats' && <ScreenshotStatsPage onToast={showToast} />}
-            {currentPage === 'signin' && <SignInPage onToast={showToast} user={user} isAdmin={isAdmin} onNavigate={setCurrentPage} />}
-            {currentPage === 'admin' && isAdmin && (
-              <AdminDashboard 
-                onToast={showToast} 
-                adminRole={adminRole} 
-                user={user} 
-                orgStatsProp={orgStats} 
-              />
-            )}
-          </motion.div>
-        </AnimatePresence>
-      </main>
+          </div>
+        </div>
+      )}
+
+      {/* Tactical Maintenance Lockdown Screen */}
+      {websiteModules.maintenanceMode && !isAdmin && currentPage !== 'signin' && currentPage !== 'admin' ? (
+        <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center p-6 relative overflow-hidden font-sans pt-20">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,34,68,0.12)_0,transparent_70%)] pointer-events-none" />
+          <div className="absolute top-16 left-0 w-full h-1 bg-gradient-to-r from-red-600 via-gold to-red-600 animate-pulse" />
+          
+          <div className="max-w-xl w-full bg-neutral-950 border border-red-500/40 p-8 md:p-12 text-center relative z-10 shadow-[0_0_80px_rgba(255,34,68,0.25)] rounded-sm space-y-6">
+            <div className="w-16 h-16 mx-auto bg-red-600/10 border border-red-500/40 rounded-full flex items-center justify-center text-red-500 animate-pulse">
+              <Lock size={32} />
+            </div>
+
+            <div className="space-y-2">
+              <div className="text-[10px] font-black uppercase tracking-[0.3em] text-red-500 font-orbitron">
+                Tactical Lockdown Activated
+              </div>
+              <h1 className="font-bebas text-4xl md:text-6xl text-white tracking-widest leading-none">
+                SYSTEM <span className="text-red-500">MAINTENANCE</span>
+              </h1>
+            </div>
+
+            <p className="text-neutral-300 text-xs md:text-sm leading-relaxed border-y border-white/10 py-6 font-medium">
+              {websiteModules.maintenanceMessage || 'Alpha Esports Grid is currently undergoing scheduled tactical maintenance and infrastructure updates. Public network access will be restored shortly.'}
+            </p>
+
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-2">
+              <button
+                onClick={() => navigate('signin')}
+                className="w-full sm:w-auto px-6 py-3.5 bg-red-600 hover:bg-red-500 text-white font-black text-xs uppercase tracking-widest transition-all rounded-[2px] flex items-center justify-center gap-2"
+              >
+                <Shield size={14} /> Command Staff Access
+              </button>
+              <button
+                onClick={() => window.location.reload()}
+                className="w-full sm:w-auto px-6 py-3.5 bg-neutral-900 hover:bg-neutral-800 text-neutral-300 border border-white/10 font-black text-xs uppercase tracking-widest transition-all rounded-[2px] flex items-center justify-center gap-2"
+              >
+                <RefreshCw size={14} /> Refresh Grid Status
+              </button>
+            </div>
+
+            <div className="text-[9px] text-neutral-600 font-mono pt-4 uppercase tracking-widest">
+              STATUS: RESTRICTED // ACCESS: CREDENTIALED ADMINS ONLY
+            </div>
+          </div>
+        </div>
+      ) : (
+        <>
+          {/* Main Content Area */}
+          <main className={websiteModules.announcementBanner && websiteModules.announcementText ? 'pt-8' : ''}>
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={currentPage}
+                initial={{ opacity: 0, x: 10 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -10 }}
+                transition={{ duration: 0.3 }}
+              >
+                {currentPage === 'home' && (
+                  <Home 
+                    onNavigate={navigate} 
+                    onToast={showToast} 
+                    userRole={userRole} 
+                    isAdmin={isAdmin} 
+                    user={user} 
+                    branding={branding} 
+                    modules={websiteModules} 
+                  />
+                )}
+                
+                {currentPage === 'tournament' && (
+                  websiteModules.tournaments || isAdmin ? (
+                    <TournamentPage onToast={showToast} user={user} onNavigate={navigate} />
+                  ) : (
+                    <ModuleOfflineNotice title="Tournaments & Events" onHome={() => navigate('home')} />
+                  )
+                )}
+
+                {currentPage === 'registration' && selectedTournament && user && (
+                  <RegistrationPage 
+                    tournament={selectedTournament} 
+                    user={user} 
+                    onNavigate={navigate} 
+                    onToast={showToast} 
+                    socialLinks={socialLinks} 
+                    modules={websiteModules} 
+                  />
+                )}
+
+                {currentPage === 'tournament-details' && selectedTournament && (
+                  <TournamentDetailsPage tournament={selectedTournament} user={user} onNavigate={navigate} onToast={showToast} isAdmin={isAdmin} />
+                )}
+
+                {currentPage === 'results' && (
+                  websiteModules.results || isAdmin ? (
+                    <ResultsPage onToast={showToast} isAdmin={isAdmin} />
+                  ) : (
+                    <ModuleOfflineNotice title="Results & Standings" onHome={() => navigate('home')} />
+                  )
+                )}
+
+                {currentPage === 'ranking' && (
+                  websiteModules.ranking || isAdmin ? (
+                    <RankingPage onToast={showToast} />
+                  ) : (
+                    <ModuleOfflineNotice title="Rankings & Leaderboards" onHome={() => navigate('home')} />
+                  )
+                )}
+
+                {currentPage === 'roster' && (
+                  websiteModules.roster || isAdmin ? (
+                    <RosterPage onToast={showToast} />
+                  ) : (
+                    <ModuleOfflineNotice title="Pro Squad & Lineups" onHome={() => navigate('home')} />
+                  )
+                )}
+
+                {currentPage === 'recruitment' && (
+                  websiteModules.recruitment || isAdmin ? (
+                    <RecruitmentPage onToast={showToast} user={user} />
+                  ) : (
+                    <ModuleOfflineNotice title="Recruitment & Tryouts" onHome={() => navigate('home')} />
+                  )
+                )}
+
+                {currentPage === 'management' && (
+                  websiteModules.management || isAdmin ? (
+                    <ManagementPage isAdmin={isAdmin} onNavigate={setCurrentPage} />
+                  ) : (
+                    <ModuleOfflineNotice title="Command Staff & Org Management" onHome={() => navigate('home')} />
+                  )
+                )}
+
+                {currentPage === 'about' && (
+                  websiteModules.about || isAdmin ? (
+                    <AboutPage stats={orgStats} branding={branding} staff={staff} />
+                  ) : (
+                    <ModuleOfflineNotice title="About & Intel Hub" onHome={() => navigate('home')} />
+                  )
+                )}
+
+                {currentPage === 'screenshot-stats' && (
+                  websiteModules.aiStats || isAdmin ? (
+                    <ScreenshotStatsPage onToast={showToast} />
+                  ) : (
+                    <ModuleOfflineNotice title="AI Combat Analytics" onHome={() => navigate('home')} />
+                  )
+                )}
+
+                {currentPage === 'signin' && <SignInPage onToast={showToast} user={user} isAdmin={isAdmin} onNavigate={setCurrentPage} />}
+                
+                {currentPage === 'admin' && isAdmin && (
+                  <AdminDashboard 
+                    onToast={showToast} 
+                    adminRole={adminRole} 
+                    user={user} 
+                    orgStatsProp={orgStats} 
+                  />
+                )}
+              </motion.div>
+            </AnimatePresence>
+          </main>
+        </>
+      )}
 
       {/* Footer */}
       <footer className="bg-black border-t border-gold/10 pt-24 pb-12 px-4">

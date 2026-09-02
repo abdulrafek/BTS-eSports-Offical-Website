@@ -75,6 +75,7 @@ export interface Tournament {
   map?: string;
   imageUrl?: string;
   discordLink?: string;
+  discordWebhookUrl?: string;
   instagramLink?: string;
   youtubeLink?: string;
   description?: string;
@@ -115,3 +116,51 @@ export interface TournamentRegistration {
 export interface RankingPlayer extends Player {
   score: number;
 }
+
+export interface WebsiteModules {
+  tournaments: boolean;
+  results: boolean;
+  ranking: boolean;
+  roster: boolean;
+  recruitment: boolean;
+  management: boolean;
+  about: boolean;
+  aiStats: boolean;
+  liveStream: boolean;
+  matchCenter: boolean;
+  scrims: boolean;
+  highlights: boolean;
+  achievements: boolean;
+  registrations: boolean;
+  discordIntegration: boolean;
+  maintenanceMode: boolean;
+  maintenanceMessage?: string;
+  announcementBanner: boolean;
+  announcementText?: string;
+  announcementLink?: string;
+  announcementType?: 'gold' | 'red' | 'cyan' | 'green';
+}
+
+export const DEFAULT_WEBSITE_MODULES: WebsiteModules = {
+  tournaments: true,
+  results: true,
+  ranking: true,
+  roster: true,
+  recruitment: true,
+  management: true,
+  about: true,
+  aiStats: true,
+  liveStream: true,
+  matchCenter: true,
+  scrims: true,
+  highlights: true,
+  achievements: true,
+  registrations: true,
+  discordIntegration: true,
+  maintenanceMode: false,
+  maintenanceMessage: 'Alpha Esports Grid is currently undergoing scheduled tactical maintenance. Stand by for deployment.',
+  announcementBanner: false,
+  announcementText: '🔥 New BGMI Pro Tournament registrations are now live! Claim your squad slot.',
+  announcementLink: 'tournament',
+  announcementType: 'gold',
+};

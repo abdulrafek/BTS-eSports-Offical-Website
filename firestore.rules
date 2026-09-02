@@ -194,12 +194,14 @@ service cloud.firestore {
 
     match /scrims/{scrimId} {
       allow read: if true;
-      allow create, update, delete: if isContentModerator() && isValidScrim(incoming());
+      allow create, update: if isContentModerator() && isValidScrim(incoming());
+      allow delete: if isContentModerator();
     }
 
     match /divisions/{divisionId} {
       allow read: if true;
-      allow create, update, delete: if isContentModerator() && isValidDivision(incoming());
+      allow create, update: if isContentModerator() && isValidDivision(incoming());
+      allow delete: if isContentModerator();
     }
 
     match /applications/{appId} {

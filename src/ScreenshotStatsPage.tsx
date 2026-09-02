@@ -167,9 +167,10 @@ export function ScreenshotStatsPage({ onToast }: { onToast: (t: string, m: strin
   const handleAuthAndToken = async () => {
     try {
       setAuthError(null);
-      // Ensure we request the explicit Drive Scope required
-      googleProvider.addScope('https://www.googleapis.com/auth/drive.file');
-      const result = await signInWithPopup(auth, googleProvider);
+      // Dedicated Drive Provider instance to avoid mutating the global default provider
+      const driveProvider = new GoogleAuthProvider();
+      driveProvider.addScope('https://www.googleapis.com/auth/drive.file');
+      const result = await signInWithPopup(auth, driveProvider);
       const credential = GoogleAuthProvider.credentialFromResult(result) || (result as any)._credential || (result as any).credential;
       if (credential?.accessToken) {
         setAccessToken(credential.accessToken);
@@ -178,14 +179,20 @@ export function ScreenshotStatsPage({ onToast }: { onToast: (t: string, m: strin
         throw new Error('Could not acquire access token from Sign-In. Try again.');
       }
     } catch (err: any) {
-      console.error(err);
-      if (err.code === 'auth/popup-closed-by-user' || err.code === 'auth/cancelled-popup-request') {
+      const isDismissed = err?.code === 'auth/popup-closed-by-user' || 
+                          err?.code === 'auth/cancelled-popup-request' ||
+                          err?.code === 'auth/user-cancelled' ||
+                          err?.message?.includes('popup-closed-by-user') ||
+                          err?.message?.includes('cancelled-popup-request');
+      if (isDismissed) {
         setAuthError('Connection cancelled by user.');
         onToast('Connection Cancelled', 'The authentication window was closed.');
-      } else if (err.code === 'auth/popup-blocked') {
+      } else if (err?.code === 'auth/popup-blocked' || err?.message?.includes('popup-blocked')) {
+        console.warn("Google Drive Popup Blocked:", err);
         setAuthError('Popup blocked by browser settings.');
         onToast('Popup Blocked', 'Please enable popups to connect with Google Drive.');
       } else {
+        console.error("Google Drive OAuth Error:", err);
         setAuthError(err.message || 'OAuth Connection Failed.');
         onToast('Access Required', 'Cleared scope failed or popup blocked. Verify browser permissions.');
       }

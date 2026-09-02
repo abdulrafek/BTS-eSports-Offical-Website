@@ -378,6 +378,91 @@ async function startServer() {
     }
   });
 
+  // API endpoint to securely send structured, styled Discord Webhook Notifications for registrations
+  app.post("/api/discord-notify", async (req: express.Request, res: express.Response) => {
+    try {
+      const { webhookUrl, test, tournamentName, teamName, leaderName, ign, playerId, discordId, contact, squad } = req.body;
+
+      if (!webhookUrl) {
+        return res.status(400).json({ error: "Missing Discord Webhook URL" });
+      }
+
+      let payload: any = {};
+
+      if (test) {
+        payload = {
+          username: "Alpha Esports Intelligence",
+          avatar_url: "https://images.unsplash.com/photo-1614680376593-902f74fa0d41?auto=format&fit=crop&w=150&q=80",
+          embeds: [
+            {
+              title: "📡 Discord Webhook Test Connection",
+              description: "Tactical telemetry verified! The website tournament registration grid is now successfully integrated with this Discord channel.",
+              color: 2121755,
+              fields: [
+                { name: "Connection Status", value: "🟢 ONLINE / ACTIVE", inline: true },
+                { name: "Response Protocol", value: "✅ READY", inline: true }
+              ],
+              footer: {
+                text: "Alpha Esports Webhook Integration Module",
+                icon_url: "https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&w=50&q=80"
+              },
+              timestamp: new Date().toISOString()
+            }
+          ]
+        };
+      } else {
+        const squadList = (squad || [])
+          .filter((s: any) => s.ign || s.uid)
+          .map((s: any, idx: number) => `🔹 **Player ${idx + 1}:** ${s.ign || 'N/A'} *(ID: ${s.uid || 'N/A'})*`)
+          .join("\n") || "*Solo Captain*";
+
+        payload = {
+          username: "Alpha Esports Registrations",
+          avatar_url: "https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&w=150&q=80",
+          embeds: [
+            {
+              title: "🏆 New Tournament Registration Received!",
+              description: `A new team has registered on the grid for the **${tournamentName || 'Tournament'}**! Here is their tactical dossier:`,
+              color: 13938487, // Gold #D4AF37
+              fields: [
+                { name: "Tournament Name", value: tournamentName || "N/A", inline: true },
+                { name: "Registered Team Name", value: `⚡ **${teamName || "N/A"}**`, inline: true },
+                { name: "Team Captain / Leader", value: `👤 ${leaderName || "N/A"} (${ign || "N/A"})`, inline: true },
+                { name: "Character ID (UID)", value: `\`${playerId || "N/A"}\``, inline: true },
+                { name: "Discord Handle", value: `\`${discordId || "N/A"}\``, inline: true },
+                { name: "Contact Number", value: contact || "N/A", inline: true },
+                { name: "Roster Lineup", value: squadList, inline: false }
+              ],
+              footer: {
+                text: "Alpha Esports Automated Dispatch",
+                icon_url: "https://images.unsplash.com/photo-1614680376593-902f74fa0d41?auto=format&fit=crop&w=50&q=80"
+              },
+              timestamp: new Date().toISOString()
+            }
+          ]
+        };
+      }
+
+      const response = await fetch(webhookUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(payload)
+      });
+
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(`Discord responded with status ${response.status}: ${text}`);
+      }
+
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Discord webhook dispatch failed:", error);
+      res.status(500).json({ error: error.message || "Failed to deliver payload to Discord." });
+    }
+  });
+
   // API endpoint to generate tailored Gemini-powered scouting reports
   app.post("/api/gemini-scouting", async (req: express.Request, res: express.Response) => {
     try {
